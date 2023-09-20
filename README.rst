@@ -40,7 +40,7 @@ industrial management needs arise.
 Installation
 -------------
 
-Install through pip:
+Install using pip:
 
     ``pip install hyperpack``
 
@@ -141,7 +141,7 @@ of figure implementation.
 
 The figure below is opened in default browser:
 
-.. image:: ./docs/source/_static/README_figure.png
+.. image:: https://github.com/AlkiviadisAleiferis/hyperpack/blob/main/docs/source/_static/README_figure.png?raw=true
    :align: center
    :width: 100%
    :alt: example_figure

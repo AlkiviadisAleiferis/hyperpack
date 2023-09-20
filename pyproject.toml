@@ -17,12 +17,11 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-  "License :: OSI Approved :: MIT License",
+  "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
-  "Intended Audience :: Financial and Insurance Industry",
   "Intended Audience :: Information Technology",
   "Intended Audience :: Manufacturing",
-  "Intended Audience :: Science/Research",
+  "Intended Audience :: Science/Research"
 ]
 readme = "README.rst"
 license = "Apache-2.0"
@@ -30,22 +29,22 @@ documentation = "https://alkiviadisaleiferis.readthedocs.io/en/latest/"
 packages = [{include = "hyperpack"}]
 
 [tool.poetry.dependencies]
-# turn to 3.9 manually for development installation. poetry 1.6.1 used.
-python = "^3.9"
+# for dev/doc installation use poetry.lock or turn to ^3.9 manually
+python = "^3.7"
 
 [tool.poetry.group.dev.dependencies]
+black = "23.9.0"
+coverage = "7.3.1"
+flake8 = "6.1.0"
+isort = "5.12.0"
 kaleido = "0.2.1"
 plotly = "^5.14"
-black = "23.9.0"
-isort = "5.12.0"
-pytest = "7.4.1"
-pytest-mock ="3.11.1"
 pre-commit-hooks = "4.4.0"
 pre-commit = "3.4.0"
-flake8 = "6.1.0"
-twine = "*"
-coverage = "7.3.1"
+pytest = "7.4.1"
+pytest-mock ="3.11.1"
 pytest-cov = "4.1.0"
+twine = "*"
 
 [tool.poetry.group.doc.dependencies]
 sphinx = "7.2.5"
