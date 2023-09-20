@@ -1,0 +1,81 @@
+[tool.poetry]
+name = "hyperpack"
+version = "1.0.0"
+description = "A hyper-heuristic approach on solving the 2D bin packing problem"
+authors = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]
+maintainers = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]
+repository = "https://github.com/AlkiviadisAleiferis/hyperpack"
+homepage = "https://github.com/AlkiviadisAleiferis/hyperpack"
+keywords = [
+  "2d-binpacking", "2DBPP","heuristics", "meta-heuristics",
+  "local-search", "hyper-heuristics", "bin-packing", "research", "AI",
+  "algorithms", "operations-research"
+]
+classifiers = [
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Financial and Insurance Industry",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: Manufacturing",
+  "Intended Audience :: Science/Research",
+]
+readme = "README.rst"
+license = "Apache-2.0"
+documentation = "https://alkiviadisaleiferis.readthedocs.io/en/latest/"
+packages = [{include = "hyperpack"}]
+
+[tool.poetry.dependencies]
+# turn to 3.9 manually for development installation. poetry 1.6.1 used.
+python = "^3.9"
+
+[tool.poetry.group.dev.dependencies]
+kaleido = "0.2.1"
+plotly = "^5.14"
+black = "23.9.0"
+isort = "5.12.0"
+pytest = "7.4.1"
+pytest-mock ="3.11.1"
+pre-commit-hooks = "4.4.0"
+pre-commit = "3.4.0"
+flake8 = "6.1.0"
+twine = "*"
+coverage = "7.3.1"
+pytest-cov = "4.1.0"
+
+[tool.poetry.group.doc.dependencies]
+sphinx = "7.2.5"
+sphinx-rtd-theme = "1.3"
+sphinx-rtd-dark-mode = "1.2.4"
+
+[tool.pytest.ini_options]
+addopts = "-vv -x --disable-warnings"
+console_output_style = "progress"
+log_level = "DEBUG"
+
+[tool.black]
+line-length = 89
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"

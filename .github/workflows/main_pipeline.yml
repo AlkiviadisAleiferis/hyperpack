@@ -1,0 +1,28 @@
+name: main_pipeline
+on: [push]
+jobs:
+  testing_and_linting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+            python-version: "3.11"
+      - run: python3 -m pip install --upgrade pip
+      - name: setup_project
+        run: |
+          python3 -m venv pyenv
+          . ./pyenv/bin/activate
+          python3 -m pip install poetry==1.6.1
+          poetry install
+      - name: tests
+        run: |
+          . ./pyenv/bin/activate
+          pytest
+      - name: linting_check
+        run: |
+          . ./pyenv/bin/activate
+          black . --check --exclude=pyenv
+          isort . --check --skip=pyenv
+          flake8 . --exclude=pyenv,tests,libtest.py,docs
