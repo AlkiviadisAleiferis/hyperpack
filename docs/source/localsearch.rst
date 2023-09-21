@@ -10,6 +10,11 @@ A brief explanation of the local search procedure :ref:`here<local_search>`.
 .. code-block:: python
 
     >>> from hyperpack import HyperPack
+    >>> problem_data = {
+    >>>     "containers": containers,
+    >>>     "items": items,
+    >>>     "settings": settings
+    >>> }
     >>> problem = HyperPack(**problem_data)
     >>> problem.local_search()
 

@@ -5,7 +5,7 @@ Contents
     Alkiviadis Aleiferis,
     alkiviadis.aliferis@gmail.com
 
-:Version: 1.0.0
+:Version: 1.0.1
 
 .. image:: ./_static/hyperpack_logo.png
    :align: center

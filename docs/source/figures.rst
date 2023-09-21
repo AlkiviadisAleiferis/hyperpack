@@ -6,22 +6,38 @@ Figures guide
 
 .. _figures_guide:
 
+All figure operations are done with the ``create_figure`` method.
+
+The figure is **first created** with plotly, and then according to settings or the ``show`` parameter
+of the method, either:
+
+  The figure is **shown** (opened in the default browser).
+
+  The figure is **exported** to **html** type (only plotly) to local filesystem.
+
+  The figure is **exported** to **image** type (also needs kaleido) to local filesystem.
+
+  The figure is **exported** and **shown**.
+
 .. warning::
 
   - every figure related operation requires `plotly`_ (version >= 5.14.0)
-  - exportation to image (not html) requires `kaleido`_ (version >= 0.2.1).
-
-  If "figure" key has been given in settings with proper structure, or the ``create_figure`` method is called
-  and the plotly requirement isn't met in the execution environment, a ``SettingsError`` will be raised.
-
-  If "figure" key has been given in settings with proper structure, with exportation to type image
-  and the kaleido requirement isn't met in the execution environment, a ``SettingsError`` will be raised.
+  - exportation to image (not html) **also** requires `kaleido`_ (version >= 0.2.1)
 
 .. _`plotly`: https://plotly.com/python/
 .. _`kaleido`: https://pypi.org/project/kaleido/
 
-The decision was made for minizing the library's dependencies and also for providing the freedom
-of the user to implement his own figures utilizing the :ref:`problem.solution<solution_structure>` attribute which
+To **show** the figure either provide ``"figure"`` -> ``{"show": True}`` in settings before calling
+``problem.create_figure()`` (show parameter wont affect anything), or even totally omitting settings
+call ``problem.create_figure(show=True)`` will do the job. If plotly requirement isn't met, a
+``SettingsError`` will be raised.
+
+To **export** one must provide according settings in ``"figure"`` -> ``"export"`` key. If plotly
+and kaleido requirements aren't met, a ``SettingsError`` will be raised.
+
+The decision for not including plotly and kaleido as dependencies was made for minizing the library's
+dependencies and also for providing the freedom of the user to implement his own figures
+utilizing the :ref:`problem.solution<solution_structure>` attribute which
 is available after solving.
 
 Here is an example of a figure with plotly. ``"i_0"``, ``"i_1"``, ... are the items' ids.
@@ -31,23 +47,12 @@ Here is an example of a figure with plotly. ``"i_0"``, ``"i_1"``, ... are the it
 
 All the settings for the figure are provided in the ``"figure"`` key of the :ref:`settings<settings_param>` parameter.
 
-Omit ``"figure"`` key for no figure export operations. You can still see the figure thought by calling ``problem.create_figure(show=True)``
-after a solution has been found.
-
-If the ``"figure"`` key is given, validation on figure settings will take place with appropriate errors.
-
-If the ``"export"`` key exists in the ``"figure"`` nested dictionary, exportation will take place accordingly to ``"export"`` settings' values.
-
-All the figure settings can be seen :ref:`here<settings_param>`
+Omit ``"figure"`` key for no figure export operations (still able to create and see it with plotly).
 
 .. note::
 
     If a solution hasn't been found yet, a ``Can't create figure if a solution hasn't been found`` warning message will be logged,
     when ``create_figure`` is called.
-
-.. note::
-
-  All figure operations are done with the ``create_figure`` method.
 
 ----------------------------
 
@@ -70,20 +75,22 @@ If the settings ``"show"`` key isn't given, the below method call will do the tr
 
 The settings ``"show"`` value has precedence over the ``create_figure``'s ``show`` parameter.
 
+If plotly requirement isn't met, a ``SettingsError`` will be raised. Kaleido is not required for this operation.
+
 ----------------------------
 
 Export figure
 -------------
 
-If the ``"figure"`` key in settings is has an ``"export"`` key,
-according to this key's value a corresponfing exportation will take place.
+If the ``"figure"`` key in settings has an ``"export"`` key,
+according to this key's value (dictionary) a corresponfing exportation will take place.
 
 In case anything goes wrong during the exportation process, a ``FigureExportError`` will be raised.
 
 plotly library is required for figure creation, and kaleido for exportation to **image type only**, as mentioned above.
 
-figure's file name
-##################
+export -> file_name
+####################
 
 Each container will have it's corresponding figure.
 
@@ -103,7 +110,7 @@ Each figure's file name will be determined by the ``"file_name"`` key.
 
   - If ``"file_name"`` key is omitted, the ``"file_name"`` value will default to ``"PlotlyGraph"``.
 
-figure's export path
+export -> path
 ####################
 
 Determined by the ``"path"`` key. A ``SettingsError`` wil be raised if:
@@ -111,8 +118,8 @@ Determined by the ``"path"`` key. A ``SettingsError`` wil be raised if:
   - ``"path"`` isn't a valid, existing, absolute path of a directory (folder).
   - ``"path"`` is omitted or isn't of type ``str``.
 
-exporting to html
-#################
+export -> type = "html"
+#######################
 
 Determined by the ``"type"`` key value -> ``"html"``.
 
@@ -120,10 +127,10 @@ Determined by the ``"type"`` key value -> ``"html"``.
   - Omitting the ``"format"`` key won't raise a ``SettingsError``, as the ``".html"`` format is fixed.
   - ``"width"`` or ``"length"`` keys' values won't affect the process in any way, but will cause ``SettingsError`` if given with invalid values.
 
-exporting to image (pdf, png, jpeg, webp, svg)
-##############################################
+export -> type = "image"
+#########################
 
-Determined by the ``"type"`` key value -> ``"image"``.
+Determined by the ``"type"`` key value -> ``"image"`` ("pdf", "png", "jpeg", "webp", "svg").
 
   - If the ``"type"`` key's value is ``"image"``, an image will be exported to the provided path.
   - Image exportation depends on **kaleido** package. If not present in environment, a ``SettingsError`` will be raised.
@@ -132,10 +139,10 @@ Determined by the ``"type"`` key value -> ``"image"``.
   - ``"width"`` and ``"height"`` can be omitted, and a default 1700x1700px size will be given. If given, they must be positive integers, or a ``SettingsError`` will be raised.
   - If **kaleido** (version >= 0.2.1) isn't found in execution environment, a ``SettingsError`` will be raised.
 
-figure's export format
+export -> format
 ######################
 
-It's the file extension and is determined by the ``"format"`` key.
+It's the file extension and is determined by the ``"format"`` key ("pdf", "png", "jpeg", "webp", "svg").
 
     **If exportation is done to** ``html`` type, format is unecessary to be provided, and if it is provided
     it won't affect the operation or validation, since the format is standard ``.html`` extension.

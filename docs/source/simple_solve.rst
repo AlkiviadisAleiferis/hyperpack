@@ -7,6 +7,11 @@ heuristic <https://github.com/AlkiviadisAleiferis/hyperpack-theory/blob/main/a_h
 .. code-block:: python
 
     >>> from hyperpack import HyperPack
+    >>> problem_data = {
+    >>>     "containers": containers,
+    >>>     "items": items,
+    >>>     "settings": settings
+    >>> }
     >>> problem = HyperPack(**problem_data)
     >>> problem.solve()
 

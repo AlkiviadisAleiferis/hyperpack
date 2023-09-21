@@ -116,6 +116,9 @@ class DimensionsError(ErrorLoggingException):
 class FigureExportError(ErrorLoggingException):
     FIGURE_EXPORT = "ERROR at figure exportation:\n\t {}"
     NO_SOLUTION_WARNING = "Can't create figure if a solution hasn't been found"
+    NO_FIGURE_OPERATION = (
+        "If not showing or exporting the figure makes the operation obsolete."
+    )
 
 
 class MultiProcessError(ErrorLoggingException):

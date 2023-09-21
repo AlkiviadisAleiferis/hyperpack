@@ -9,6 +9,11 @@ This method implements a potentially :ref:`exhaustive<hyper_search>` search for 
 .. code-block:: python
 
     >>> from hyperpack import HyperPack
+    >>> problem_data = {
+    >>>     "containers": containers,
+    >>>     "items": items,
+    >>>     "settings": settings
+    >>> }
     >>> problem = HyperPack(**problem_data)
     >>> problem.hypersearch(
     >>>     orientation="wide",

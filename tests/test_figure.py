@@ -204,7 +204,14 @@ def test_figure_no_solution_found(test_data, caplog):
     assert FigureExportError.NO_SOLUTION_WARNING in caplog.text
 
 
-def test_figure_FigureExportError(test_data, caplog):
+def test_figure_no_operation_warning(test_data, caplog):
+    prob = HyperPack(**test_data, settings={})
+    prob.solve()
+    prob.create_figure()
+    assert FigureExportError.NO_FIGURE_OPERATION in caplog.text
+
+
+def test_figure_FigureExportError(test_data):
     prob = HyperPack(**test_data)
     prob.solve()
     prob._settings = {

@@ -3,14 +3,15 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(os.getcwd()).parent.parent))
+import hyperpack
 from hyperpack import heuristics
 
 sys.modules["heuristics"] = heuristics
 
 project = "hyperpack"
 copyright = "2023, Alkiviadis Aleiferis"
-author = "Alkiviadis Aleiferis"
-release = "1.0"
+author = hyperpack.__author__
+release = hyperpack.__version__
 
 extensions = [
     "sphinx.ext.autosectionlabel",

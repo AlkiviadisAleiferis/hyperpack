@@ -19,16 +19,14 @@ Problem description
 The hyperpack library is an API for solving instances of the `2D Binpacking problem`_.
 Many different variations can be created and solved, accordind to the instantiation data.
 
-The theory of this library's implementation can be found in author's
-document `"A hyper-heuristic for solving variants of the 2D bin packing problem"`_.
-
-.. _`"A hyper-heuristic for solving variants of the 2D bin packing problem"`: https://github.com/AlkiviadisAleiferis/hyperpack-theory
+The library is multiprocessing enabled to minize execution times and `utilizes only pure python`, making
+the package dependency free.
 
 .. _`2D Binpacking problem`: https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=2cb8247534c9e889ac42b2362f0ad96c8c6b8c77
 
 The solvable variants can be summarized in the below characteristics:
-  - Any number and sizes of (rectangular) items (small objects)
-  - Any number and sizes of (rectangular) bins (large objects)
+  - Any number and sizes of (rectangular) items (small objects).
+  - Any number and sizes of (rectangular) bins (large objects).
   - The items can be rotated or not.
 
 Currently the library solves only packing problems, but a customization may be made also in
@@ -36,6 +34,11 @@ the future for strip packing problems.
 
 The bin packing problem has been used in many sectors of the industry, and mostly where manufacturing or
 industrial management needs arise.
+
+The theory of this library's implementation can be found in author's
+document `"A hyper-heuristic for solving variants of the 2D bin packing problem"`_.
+
+.. _`"A hyper-heuristic for solving variants of the 2D bin packing problem"`: https://github.com/AlkiviadisAleiferis/hyperpack-theory
 
 Installation
 -------------
@@ -99,6 +102,11 @@ Do Local search with default settings:
 .. code-block:: python
 
     >>> from hyperpack import HyperPack
+    >>> problem_data = {
+    >>>     "containers": containers,
+    >>>     "items": items,
+    >>>     "settings": settings
+    >>> }
     >>> problem = HyperPack(**problem_data)
     >>> problem.local_search()
 
@@ -174,13 +182,10 @@ This packages inner mechanics and theoretical design are based upon this `docume
 
 .. _`documentation`: https://github.com/AlkiviadisAleiferis/hyperpack-theory
 
-Donations
-----------
+Helping
+--------
 
-Donations are much appreciated and compensate for the workhours invested in creating this package.
-If you 're using hyperpack commercially and get monetary value from it's functionalities, please
-consider a donation of any size. These donations can help maintain and extend the operability of this library.
+Creating issues wherever bugs are found, giving suggestions for upcoming versions and
+`donating`_ can surely help in maintaining and growing this package.
 
-You can use this `link`_  for donating.
-
-.. _`link`: https://www.paypal.com/donate/?hosted_button_id=QESY46KQV94V2
+.. _`donating`: https://www.paypal.com/donate/?hosted_button_id=QESY46KQV94V2

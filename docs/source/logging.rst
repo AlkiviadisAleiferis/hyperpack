@@ -5,7 +5,7 @@ Two loggers are used inside the library. The ``"pointgenpack"`` logger and the `
 
 The former one is used for debugging the Point Generation hueristic, and is solely used for development.
 
-The latter one is used throught the library and is user intended on INFO level (DEBUG level is used mostly for development).
+The latter one is used throughout the library and is user intended on INFO level (DEBUG level is used mostly for development).
 
 Use the logger like this:
 

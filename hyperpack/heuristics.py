@@ -74,19 +74,52 @@ class PointGenPack:
         self._workers_num = None
         self._rotation = None
         self._settings = settings or {}
+        self._check_plotly_kaleido()
         self.validate_settings()
 
         # it's the strategy used for the instance. It can be
         # dynamically changed to alter construction heuristic
         self._potential_points_strategy = self.DEFAULT_POTENTIAL_POINTS_STRATEGY
         self._containers_num = len(containers)
-        self.solution = {}  # {container_id: solution, ...}
+        self.solution = {}
+
+    def _check_plotly_kaleido(self):
+        self._plotly_installed = False
+        self._plotly_ver_ok = False
+        self._kaleido_installed = False
+        self._kaleido_ver_ok = False
+
+        try:
+            import plotly
+
+            self._plotly_installed = True
+            plotly_ver = tuple([x for x in plotly.__version__.split(".")][:3])
+            if plotly_ver >= self.PLOTLY_MIN_VER and plotly_ver < self.PLOTLY_MAX_VER:
+                self._plotly_ver_ok = True
+        except ImportError:
+            pass
+
+        try:
+            import kaleido
+
+            self._kaleido_installed = True
+            kaleido_ver = tuple([x for x in kaleido.__version__.split(".")][:3])
+            if (
+                kaleido_ver >= self.KALEIDO_MIN_VER
+                and kaleido_ver < self.KALEIDO_MAX_VER
+            ):
+                self._kaleido_ver_ok = True
+        except ImportError:
+            pass
 
     def validate_settings(self) -> None:
         """
         Method for validating and applying the settings either
-        provided through instantiation or explicit assignment to
-        self.settings, or by calling ``self.validate_settings`` by the user.
+        provided through
+
+            - instantiation
+            - explicit assignment to self.settings
+            - calling ``self.validate_settings()``.
 
         **PARAMETERS**
             ``None``
@@ -174,13 +207,10 @@ class PointGenPack:
         if figure_settings:
             # plotly library must be installed, and at least 5.14.0 version
             # to enable any figure instantiation/exportation
-            try:
-                import plotly
-            except ImportError:
+            if not self._plotly_installed:
                 raise SettingsError("PLOTLY_NOT_INSTALLED")
 
-            plotly_ver = tuple([x for x in plotly.__version__.split(".")][:3])
-            if plotly_ver < self.PLOTLY_MIN_VER or plotly_ver >= self.PLOTLY_MAX_VER:
+            if not self._plotly_ver_ok:
                 raise SettingsError("PLOTLY_VERSION")
 
             if "export" in figure_settings:
@@ -234,16 +264,10 @@ class PointGenPack:
                         raise SettingsError("FIGURE_EXPORT_FILE_NAME_VALUE")
 
                 if export_type == "image":
-                    try:
-                        import kaleido
-                    except ImportError:
+                    if not self._kaleido_installed:
                         raise SettingsError("FIGURE_EXPORT_KALEIDO_MISSING")
 
-                    kaleido_ver = tuple([x for x in kaleido.__version__.split(".")][:3])
-                    if (
-                        kaleido_ver < self.KALEIDO_MIN_VER
-                        or kaleido_ver >= self.KALEIDO_MAX_VER
-                    ):
+                    if not self._kaleido_ver_ok:
                         raise SettingsError("FIGURE_EXPORT_KALEIDO_VERSION")
 
                     export_width = export.get("width")
@@ -711,7 +735,8 @@ class PointGenPack:
 
     def _get_current_solution(self):
         """
-        Returns the solution object, if there was a solution convergence.
+        Returns the solution object of the _construct method
+        for the current solving container.
         """
         solution = {}
         for _id in self.current_solution:
@@ -752,7 +777,7 @@ class PointGenPack:
         """
         # deepcopying is done cause items will be removed
         # from items pool after each container is solved
-        # self._items shouldn't have same id with items
+        # self._items shouldn't have same ids with items
         if items_sequence is None:
             items = self._items.deepcopy()
         else:
@@ -773,9 +798,17 @@ class PointGenPack:
     # % -----------------------------
     # figure methods
     def colorgen(self, index) -> str:
+        """
+        Method for returning a hexadecimal color for every item
+        in the graph.
+        """
         return constants.ITEMS_COLORS[index]
 
     def get_figure_dtick_value(self, dimension, scale=20):
+        """
+        Method for determining the distance between ticks in
+        x or y dimension.
+        """
         return math.ceil(dimension / scale)
 
     def create_figure(self, show=False) -> None:
@@ -790,7 +823,7 @@ class PointGenPack:
             after creation.
 
         **WARNING**
-            plotly library at least 5.10.4 must be installed in environment,
+            plotly library at least 5.14.0 must be installed in environment,
             and for image exportation, at least kaleido 0.2.1. See :ref:`here<figures_guide>` for
             detailed explanation of the method.
         """
@@ -799,14 +832,23 @@ class PointGenPack:
             hyperLogger.warning(FigureExportError.NO_SOLUTION_WARNING)
             return
 
-        try:
-            import plotly.graph_objects as go
-        except ImportError:
+        if not self._plotly_installed:
             raise SettingsError("PLOTLY_NOT_INSTALLED")
+
+        elif not self._plotly_ver_ok:
+            raise SettingsError("PLOTLY_VERSION")
+        else:
+            import plotly
+
+            go = plotly.graph_objects
 
         figure_settings = self._settings.get("figure", {})
         export = figure_settings.get("export")
         show = figure_settings.get("show") or show
+
+        if not show and export is None:
+            hyperLogger.warning(FigureExportError.NO_FIGURE_OPERATION)
+            return
 
         containers_ids = tuple(self._containers)
 
@@ -1221,7 +1263,7 @@ class HyperPack(PointGenPack):
 
     def get_strategies(self, *, _exhaustive: bool = True) -> tuple:
         """
-        Returns the potential points strategies to be treversed in hypersearch.
+        Returns the total potential points strategies to be treversed in hypersearch.
         """
         if _exhaustive:
             return [
@@ -1569,6 +1611,5 @@ class HyperPack(PointGenPack):
         remaining_items = [_id for _id in self._items if _id not in items_ids]
         log.append(f"\nRemaining items : {remaining_items}")
         output_log = "\n".join(log)
-        repr(output_log)
         hyperLogger.info(output_log)
         return output_log

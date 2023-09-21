@@ -258,6 +258,7 @@ This is the ``settings`` valid structure:
         # if item rotation is enabled
         # defaults to True
 
+        # figure key can be omitted
         "figure": {
 
             "export": {
