@@ -16,9 +16,7 @@ from hyperpack import HyperPack
         ),
     ],
 )
-def test_point_generation_C(
-    container, items, points_seq, point_C, solution_points, request
-):
+def test_point_generation_C(container, items, points_seq, point_C, solution_points, request):
     settings = request.getfixturevalue("point_gen_settings")
     containers = {"cont-0": {"W": container[0], "L": container[1]}}
     items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}

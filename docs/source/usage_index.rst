@@ -13,6 +13,7 @@ Usage
    simple_solve
    localsearch
    hypersearch
+   strip_packing
    solution_structure
    extra_methods
    figures

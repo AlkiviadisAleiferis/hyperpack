@@ -58,9 +58,7 @@ from hyperpack import HyperPack
         ),
     ],
 )
-def test_point_generation_A_(
-    container, items, points_seq, point_A_, solution_points, request
-):
+def test_point_generation_A_(container, items, points_seq, point_A_, solution_points, request):
     settings = request.getfixturevalue("point_gen_settings")
     containers = {"cont-0": {"W": container[0], "L": container[1]}}
     items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}
@@ -209,7 +207,7 @@ def test_point_generation_prohibited_A__due_to_A_gen(
     prob = HyperPack(containers=containers, items=items, settings=settings)
     prob._potential_points_strategy = points_seq
     prob.solve(debug=True)
-    assert point_A_ == prob._current_potential_points["A_"]
+    assert point_A_ == list(prob._current_potential_points["A_"])
     for num, point in enumerate(solution_points):
         assert prob.solution["cont-0"][f"i-{num}"][0:2] == list(point)
 

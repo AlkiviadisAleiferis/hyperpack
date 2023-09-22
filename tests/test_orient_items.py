@@ -50,8 +50,7 @@ def test_orient_items__wrong_orientation_parameter(caplog):
     return_value = prob.orient_items(orientation=orientation)
     assert items == prob.items
     assert (
-        f"orientation parameter '{orientation}' not valid. Orientation skipped."
-        in caplog.text
+        f"orientation parameter '{orientation}' not valid. Orientation skipped." in caplog.text
     )
     assert return_value is None
 
@@ -63,8 +62,5 @@ def test_orient_items__orientation_None(caplog):
     prob = HyperPack(containers=containers, items=items)
     return_value = prob.orient_items(orientation=None)
     assert items == prob.items
-    assert (
-        f"orientation parameter '{None}' not valid. Orientation skipped."
-        not in caplog.text
-    )
+    assert f"orientation parameter '{None}' not valid. Orientation skipped." not in caplog.text
     assert return_value is None

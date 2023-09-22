@@ -13,29 +13,37 @@
 
 .. image:: https://img.shields.io/badge/pypi-v1.0.0-blue.svg
 
+.. |check_| raw:: html
+
+    <input checked=""  disabled="" type="checkbox">
+
+.. |uncheck_| raw:: html
+
+    <input disabled="" type="checkbox">
+
 Problem description
 -------------------
 
-The hyperpack library is an API for solving instances of the `2D Binpacking problem`_.
-Many different variations can be created and solved, accordind to the instantiation data.
+The hyperpack library is an API for solving instances of the `2D Binpacking problem`_ and
+also - as of v1.1.0 - strip packing instances!
 
-The library is multiprocessing enabled to minize execution times and `utilizes only pure python`, making
+The library is **multiprocessing enabled** to minimize execution times and `utilizes only pure python`, making
 the package dependency free.
 
 .. _`2D Binpacking problem`: https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=2cb8247534c9e889ac42b2362f0ad96c8c6b8c77
 
+Many different variations can be created and solved, accordind to the instantiation data.
 The solvable variants can be summarized in the below characteristics:
-  - Any number and sizes of (rectangular) items (small objects).
-  - Any number and sizes of (rectangular) bins (large objects).
+  - Any number and sizes of (rectangular) items.
+  - Any number and sizes of (rectangular) bins (containers).
   - The items can be rotated or not.
 
-Currently the library solves only packing problems, but a customization may be made also in
-the future for strip packing problems.
+The above items' charascteristics can also be applied to strip packing problems.
 
-The bin packing problem has been used in many sectors of the industry, and mostly where manufacturing or
+The bin/strip packing problem has been used in many sectors of the industry, and mostly where manufacturing or
 industrial management needs arise.
 
-The theory of this library's implementation can be found in author's
+The theory of this library's implementation and mechanics can be found in author's
 document `"A hyper-heuristic for solving variants of the 2D bin packing problem"`_.
 
 .. _`"A hyper-heuristic for solving variants of the 2D bin packing problem"`: https://github.com/AlkiviadisAleiferis/hyperpack-theory
@@ -162,16 +170,16 @@ Future development
 Many ideas and concepts can be implemented in this library. The most propable depending on
 the community's interest:
 
-    - Augmentation of the objective function to deal with a bigger plethora of problems.
-    - Implementation of the strip packing problem.
-    - Django integrations.
-    - Large Neighborhood Search for big instances of the problem.
-    - Other shapes of the container.
-    - A dynamic live terminal display.
-    - Execution speed optimization.
-    - Multiprocessing for the local search alone (combined with LNS).
-    - More detailed figures.
-    - Figures with other libraries (matplotlib).
+    - Augmentation of the objective function to deal with a bigger plethora of problems. |uncheck_|
+    - Implementation of the strip packing problem. |check_|
+    - Django integrations. |uncheck_|
+    - Large Neighborhood Search for big instances of the problem. |uncheck_|
+    - Other shapes of the container. |uncheck_|
+    - A dynamic live terminal display. |uncheck_|
+    - Execution speed optimization. |uncheck_|
+    - Multiprocessing for the local search alone (combined with LNS). |uncheck_|
+    - More detailed figures. |uncheck_|
+    - Figures with other libraries (matplotlib). |uncheck_|
 
 If interested with development with some of these features please contact me.
 
@@ -185,7 +193,5 @@ This packages inner mechanics and theoretical design are based upon this `docume
 Helping
 --------
 
-Creating issues wherever bugs are found, giving suggestions for upcoming versions and
-`donating`_ can surely help in maintaining and growing this package.
-
-.. _`donating`: https://www.paypal.com/donate/?hosted_button_id=QESY46KQV94V2
+Creating issues wherever bugs are found and giving suggestions for upcoming versions
+can surely help in maintaining and growing this package.

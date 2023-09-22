@@ -16,13 +16,13 @@ DEFAULT_POTENTIAL_POINTS_STRATEGY = HyperPack.DEFAULT_POTENTIAL_POINTS_STRATEGY
         (((2, 3), (3, 3), (3, 3)), ((2, 2), (3, 3), (2, 1)), ("A", "B"), 2),
     ],
 )
-def test_calc_obj_value(containers, items, points_seq, obj_val):
+def testcalculate_obj_value(containers, items, points_seq, obj_val):
     containers = {f"cont-{i}": {"W": c[0], "L": c[1]} for i, c in enumerate(containers)}
     items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}
     prob = HyperPack(containers=containers, items=items)
     prob._potential_points_strategy = points_seq
     prob.solve(debug=True)
-    assert obj_val == prob._calc_obj_value()
+    assert obj_val == prob.calculate_obj_value()
     assert len(prob.solution) == len(containers)
 
 

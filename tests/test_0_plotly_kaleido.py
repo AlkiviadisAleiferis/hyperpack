@@ -43,9 +43,7 @@ def test_settings_figure_plotly_not_found(plotly_lib_mock_not_found, caplog, tes
     assert error_msg in caplog.text
 
 
-def test_settings_figure_kaleido_not_found(
-    kaleido_lib_mock_not_found, caplog, test_data
-):
+def test_settings_figure_kaleido_not_found(kaleido_lib_mock_not_found, caplog, test_data):
     error_msg = SettingsError.FIGURE_EXPORT_KALEIDO_MISSING
     settings = {
         "figure": {
@@ -65,9 +63,7 @@ def test_settings_figure_kaleido_not_found(
 
 def test_settings_figure_plotly_version(kaleido_lib_mock_version, caplog, test_data):
     error_msg = SettingsError.FIGURE_EXPORT_KALEIDO_VERSION
-    settings = {
-        "figure": {"export": {"type": "image", "path": os.getcwd(), "format": "png"}}
-    }
+    settings = {"figure": {"export": {"type": "image", "path": os.getcwd(), "format": "png"}}}
     with pytest.raises(SettingsError) as exc_info:
         prob = HyperPack(**test_data, settings=settings)
     assert str(exc_info.value) == error_msg

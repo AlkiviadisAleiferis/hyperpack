@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hyperpack"
-version = "1.0.1"
+version = "1.1.0"
 description = "A hyper-heuristic approach on solving the 2D bin packing problem"
 authors = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]
 maintainers = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]
@@ -33,10 +33,8 @@ packages = [{include = "hyperpack"}]
 python = "^3.7"
 
 [tool.poetry.group.dev.dependencies]
-black = "23.9.0"
+# development in python = "^3.9"
 coverage = "7.3.1"
-flake8 = "6.1.0"
-isort = "5.12.0"
 kaleido = "0.2.1"
 plotly = "^5.14"
 pre-commit-hooks = "4.4.0"
@@ -45,6 +43,8 @@ pytest = "7.4.1"
 pytest-mock ="3.11.1"
 pytest-cov = "4.1.0"
 twine = "*"
+ruff = "0.0.291"
+black = "23.9.0"
 
 [tool.poetry.group.doc.dependencies]
 sphinx = "7.2.5"
@@ -56,8 +56,12 @@ addopts = "-vv -x --disable-warnings"
 console_output_style = "progress"
 log_level = "DEBUG"
 
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.black]
-line-length = 89
+line-length = 95
 exclude = '''
 /(
     \.git
@@ -72,9 +76,23 @@ exclude = '''
 )/
 '''
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.isort]
-profile = "black"
+[tool.ruff]
+line-length = 95
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "build",
+    "dist",
+    "pyenv",
+    "tests",
+    "docs/source/conf.py"
+]
+ignore = ["F401", "E741"]

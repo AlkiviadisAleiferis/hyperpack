@@ -1,14 +1,19 @@
 import math
+from operator import lt, gt, le, ge
 import platform
 import re
 import sys
 import time
+from array import array
+from collections import deque
 from copy import deepcopy
-from itertools import permutations
+from itertools import permutations, combinations
 from multiprocessing import Array, Process, Queue, cpu_count, current_process
 from pathlib import Path
 
 from . import constants
+from .abstract import AbstractLocalSearch
+from .processes import HyperSearchProcess
 from .exceptions import (
     ContainersError,
     FigureExportError,
@@ -16,6 +21,7 @@ from .exceptions import (
     MultiProcessError,
     PotentialPointsError,
     SettingsError,
+    DimensionsError,
 )
 from .loggers import hyperLogger, logger
 from .structures import Containers, Items
@@ -43,31 +49,41 @@ class PointGenPack:
     )
     INIT_POTENTIAL_POINTS = {
         "O": (0, 0),
-        "A": [],
-        "B": [],
-        "A_": [],
-        "B_": [],
-        "A__": [],
-        "B__": [],
-        "C": [],
-        "D": [],
-        "E": [],
-        "F": [],
+        "A": deque(),
+        "B": deque(),
+        "A_": deque(),
+        "B_": deque(),
+        "A__": deque(),
+        "B__": deque(),
+        "C": deque(),
+        "D": deque(),
+        "E": deque(),
+        "F": deque(),
     }
-    # settings defaults
+    # defaults
     MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 60
     WORKERS_NUM_DEFAULT_VALUE = 1
     ROTATION_DEFAULT_VALUE = True
-    FIGURE_FILE_NAME_REGEX = re.compile(r"[a-zA-Z0-9_-]{1,45}$")
     FIGURE_DEFAULT_FILE_NAME = "PlotlyGraph"
+    MAX_W_L_RATIO = 10
+    STRIP_PACK_INIT_HEIGHT = 2**100
+    STRIP_PACK_CONT_ID = "strip-pack-container"
+    # settings constraints
+    FIGURE_FILE_NAME_REGEX = re.compile(r"[a-zA-Z0-9_-]{1,45}$")
     ACCEPTED_IMAGE_EXPORT_FORMATS = ("pdf", "png", "jpeg", "webp", "svg")
     PLOTLY_MIN_VER = ("5", "14", "0")
     PLOTLY_MAX_VER = ("6", "0", "0")
     KALEIDO_MIN_VER = ("0", "2", "1")
     KALEIDO_MAX_VER = ("0", "3", "0")
 
-    def __init__(self, containers=None, items=None, settings=None):
-        self._containers = Containers(containers, self)
+    # % --------------- initialization --------------
+    def __init__(self, containers=None, items=None, settings=None, *, strip_pack_width=None):
+        self._check_strip_pack(strip_pack_width)
+        if not self._strip_pack:
+            self._containers = Containers(containers, self)
+        elif containers is not None:
+            raise ContainersError("STRIP_PACK_ONLY")
+
         self._items = Items(items, self)
 
         self._max_time_in_seconds = None
@@ -80,10 +96,54 @@ class PointGenPack:
         # it's the strategy used for the instance. It can be
         # dynamically changed to alter construction heuristic
         self._potential_points_strategy = self.DEFAULT_POTENTIAL_POINTS_STRATEGY
-        self._containers_num = len(containers)
+        self._containers_num = len(self._containers)
         self.solution = {}
 
-    def _check_plotly_kaleido(self):
+    def _check_strip_pack(self, strip_pack_width) -> None:
+        """
+        This method checks ``strip_pack_width`` value and set's initial values for:
+
+            ``_strip_pack``: is the attribute modifying the problem. Used for \
+            logic branching in execution. Modifies:
+
+                ``_construct``: Forces the method to accept ``container_height`` \
+                as container's height.
+
+                ``local_search``: by lowering the ``container_height`` in every new node.
+
+                ``compare_solution``: Makes comparison check if all items are in solution.
+
+                ``_get_container_height``: Branches method to return solution height \
+                or a minimum.
+
+            ``_container_height``: is the actual container's height used in ``_construct``. \
+            Is also updated in every new node solution in local_search, where a lower \
+            height is proven feasible.
+
+            ``_container_min_height``: is the minimum height that the container \
+            can get (not the solution height!).
+
+            ``containers``: with container with preset height for strip packing mode.
+        """
+        self._container_min_height = None
+
+        if strip_pack_width is None:
+            self._strip_pack = False
+            self._container_height = None
+            self._heights_history = []
+            return
+
+        if not isinstance(strip_pack_width, int) or strip_pack_width <= 0:
+            raise DimensionsError("DIMENSION_VALUE")
+
+        self._strip_pack = True
+        self._container_height = self.MAX_W_L_RATIO * strip_pack_width
+        containers = {
+            "strip-pack-container": {"W": strip_pack_width, "L": self.STRIP_PACK_INIT_HEIGHT}
+        }
+        self._containers = Containers(containers, self)
+
+    def _check_plotly_kaleido(self) -> None:
         self._plotly_installed = False
         self._plotly_ver_ok = False
         self._kaleido_installed = False
@@ -91,42 +151,40 @@ class PointGenPack:
 
         try:
             import plotly
-
+        except ImportError:
+            pass
+        else:
             self._plotly_installed = True
             plotly_ver = tuple([x for x in plotly.__version__.split(".")][:3])
             if plotly_ver >= self.PLOTLY_MIN_VER and plotly_ver < self.PLOTLY_MAX_VER:
                 self._plotly_ver_ok = True
-        except ImportError:
-            pass
 
         try:
             import kaleido
-
-            self._kaleido_installed = True
-            kaleido_ver = tuple([x for x in kaleido.__version__.split(".")][:3])
-            if (
-                kaleido_ver >= self.KALEIDO_MIN_VER
-                and kaleido_ver < self.KALEIDO_MAX_VER
-            ):
-                self._kaleido_ver_ok = True
         except ImportError:
             pass
+        else:
+            self._kaleido_installed = True
+            kaleido_ver = tuple([x for x in kaleido.__version__.split(".")][:3])
+            if kaleido_ver >= self.KALEIDO_MIN_VER and kaleido_ver < self.KALEIDO_MAX_VER:
+                self._kaleido_ver_ok = True
 
     def validate_settings(self) -> None:
         """
         Method for validating and applying the settings either
-        provided through
+        provided through:
+        **A.** instantiation
+        **B.** explicit assignment to self.settings
+        **C.** calling ``self.validate_settings()``.
 
-            - instantiation
-            - explicit assignment to self.settings
-            - calling ``self.validate_settings()``.
+        **OPERATION**
+            Validates ``settings`` instance attribute data structure and format.
+
+            Applies said settings to correlated private attributes.
 
         **PARAMETERS**
             ``None``
 
-        **OPERATION**
-            - Validates ``settings`` instance attribute data structure and format.
-            - Applies said settings to correlated private attributes.
 
         **RETURNS**
             `None`
@@ -283,24 +341,31 @@ class PointGenPack:
             if "show" in figure_settings and not isinstance(show, bool):
                 raise SettingsError("FIGURE_SHOW_VALUE")
 
-    # % -----------------------------
-    # construction heuristic methods
+    # % --------- construction heuristic methods ----------
+
     def _check_fitting(self, W, L, Xo, Yo, w, l, container_coords) -> bool:
-        if Xo + w > W or Yo + l > L:
+        if (
+            Xo + w > W
+            or Yo + l > L
+            or container_coords[Yo][Xo]
+            or container_coords[Yo + l - 1][Xo]
+            or container_coords[Yo][Xo + w - 1]
+        ):
             return False
 
-        for x in range(Xo, Xo + w):
-            for y in range(Yo, Yo + l):
-                if container_coords[y][x] == 1:
-                    return False
+        for x in range(Xo, Xo + w - 1):
+            if container_coords[Yo][x]:
+                return False
+        for y in range(Yo, Yo + l - 1):
+            if container_coords[y][Xo]:
+                return False
+
         return True
 
     def _generate_points(
-        self, container, segments, potential_points, A, B, debug
+        self, container, horizontals, verticals, potential_points, Xo, Yo, w, l, debug
     ) -> None:
-        Xo, Ay = A
-        Bx, Yo = B
-        horizontals, verticals = segments
+        A, B, Ay, Bx = (Xo, Yo + l), (Xo + w, Yo), Yo + l, Xo + w
         # EXTRA DEBBUGING
         # if debug:
         #     logger.debug("horizontals")
@@ -309,12 +374,14 @@ class PointGenPack:
         #     logger.debug("verticals")
         #     for X_level in verticals:
         #         print(f"{X_level} : {verticals[X_level]}")
-        hors = sorted(horizontals)
-        verts = sorted(verticals)
-        L, W = container["L"], container["W"]
+        hors, verts, L, W = (
+            sorted(horizontals),
+            sorted(verticals),
+            container["L"],
+            container["W"],
+        )
         if debug:
-            logger.debug(f"\tverts ={verts}")
-            logger.debug(f"\thors ={hors}")
+            logger.debug(f"\tverts ={verts}\n\thors ={hors}")
 
         A_gen = 0
         append_A__ = True
@@ -393,9 +460,7 @@ class PointGenPack:
                         if not dont_stop:
                             stop = True
                             if debug:
-                                logger.debug(
-                                    "\t\tbreaking due to non continuous obstacle"
-                                )
+                                logger.debug("\t\tbreaking due to non continuous obstacle")
                             break
                     # intersegments number
                     if not increased_num and (seg_end_Y > Yo and seg_end_Y < Ay):
@@ -497,9 +562,7 @@ class PointGenPack:
                         if not dont_stop:
                             stop = True
                             if debug:
-                                logger.debug(
-                                    "\t\tbreaking due to non continuous obstacle"
-                                )
+                                logger.debug("\t\tbreaking due to non continuous obstacle")
                             break
                     # intersegments number
                     if not increased_num and (seg_end_X > Xo and seg_end_X < Bx):
@@ -583,110 +646,105 @@ class PointGenPack:
 
     def _get_current_point(self, potential_points) -> tuple:
         for pclass in self._potential_points_strategy:
-            if potential_points[pclass] != []:
-                current_point = potential_points[pclass].pop(0)
-                return current_point, pclass
+            if potential_points[pclass]:
+                return potential_points[pclass].popleft(), pclass
 
         return (None, None)
 
-    def _append_segments(self, segments, A, B, w, l) -> None:
-        Xo, Ay = A
-        Bx, Yo = B
-        horizontals, verticals = segments
-        horizontals_ = [((Xo, Yo), (Bx, Yo)), ((Xo, Ay), (Bx, Ay))]
-        verticals_ = [((Xo, Yo), (Xo, Ay)), ((Bx, Yo), (Bx, Ay))]
+    def _append_segments(self, horizontals, verticals, Xo, Yo, w, l) -> None:
+        # A, B = (Xo, Yo + l), (Xo + w, Yo)
+        Ay, Bx = Yo + l, Xo + w
+
+        # verticals -------------------------------
         if Xo in verticals:
-            verticals[Xo].append(verticals_[0])
+            verticals[Xo].append(((Xo, Yo), (Xo, Ay)))
         else:
-            verticals[Xo] = [verticals_[0]]
+            verticals[Xo] = [((Xo, Yo), (Xo, Ay))]
 
         if Xo + w in verticals:
-            verticals[Xo + w].append(verticals_[1])
+            verticals[Xo + w].append(((Bx, Yo), (Bx, Ay)))
         else:
-            verticals[Xo + w] = [verticals_[1]]
+            verticals[Xo + w] = [((Bx, Yo), (Bx, Ay))]
 
-        # APPEND HORIZONTAL SIDES IN horizontals
+        # horizontals -------------------------------
         if Yo in horizontals:
-            horizontals[Yo].append(horizontals_[0])
+            horizontals[Yo].append(((Xo, Yo), (Bx, Yo)))
         else:
-            horizontals[Yo] = [horizontals_[0]]
+            horizontals[Yo] = [((Xo, Yo), (Bx, Yo))]
 
         if Yo + l in horizontals:
-            horizontals[Yo + l].append(horizontals_[1])
+            horizontals[Yo + l].append(((Xo, Ay), (Bx, Ay)))
         else:
-            horizontals[Yo + l] = [horizontals_[1]]
+            horizontals[Yo + l] = [((Xo, Ay), (Bx, Ay))]
 
-    def _construct(self, container, items, debug=False) -> tuple:
+    def _construct(self, cont_id, container, items, debug=False) -> tuple:
         """
         Point generation construction heuristic
         for solving single container problem instance.
-        Input:
+
+        INPUT
             container,
             items,
             debug (mode),
+
             implicitly by attribute, the potential points strategy
-        Output:
+
+        OUTPUT
             A. updates self.current_solution with the solution of the container.
             B. returns (remaining non-fitted items, containers utilization) tuple.
         """
         self.current_solution = {}
+        strip_pack = self._strip_pack
+
         # 'items' are the available for placement
         # after an item get's picked, it is erased
         items_ids = [_id for _id in items]
-        W, L = container["W"], container["L"]
+
+        if strip_pack:
+            L = self._container_height
+        else:
+            L = container["L"]
+        W = container["W"]
+
         total_surface = W * L
         # obj_value is the container utilization
         # obj_value = Area(Placed Items)/Area(Container)
         obj_value = 0
-        container_coords = [[0 for x in range(W)] for y in range(L)]
+        items_area = 0
+        max_obj_value = 1
+
+        container_coords = [array("I", [0] * W) for y in range(L)]
 
         # set starting lines
-        # lines = [horizontals, verticals]
-        segments = [
-            {  # horizontals
-                0: [
-                    ((0, 0), (W, 0)),
-                ],
-                L: [((0, L), (W, L))],
-            },
-            {  # verticals
-                0: [
-                    ((0, 0), (0, L)),
-                ],
-                W: [((W, 0), (W, L))],
-            },
-        ]
+        horizontals = {0: [((0, 0), (W, 0))]}
+        verticals = {0: [((0, 0), (0, L))], W: [((W, 0), (W, L))]}
+
         potential_points = {
             "O": (0, 0),
-            "A": [],
-            "B": [],
-            "A_": [],
-            "B_": [],
-            "A__": [],
-            "B__": [],
-            "C": [],
-            "D": [],
-            "E": [],
-            "F": [],
+            "A": deque(),
+            "B": deque(),
+            "A_": deque(),
+            "B_": deque(),
+            "A__": deque(),
+            "B__": deque(),
+            "C": deque(),
+            "D": deque(),
+            "E": deque(),
+            "F": deque(),
         }
 
         # O(0, 0) init point
         current_point, point_class = potential_points["O"], "O"
 
+        # start of item placement process
         while True:
-            if current_point is None or items == {} or obj_value >= 0.999999:
+            if current_point is None or not items_ids or obj_value >= max_obj_value:
                 break
 
             if debug:
                 logger.debug(f"\nCURRENT POINT: {current_point} class: {point_class}")
-                # container_str = []
-                # for y in range(L):
-                #     s = " ".join([str(x_y) for x_y in [point for x in range(W) for point in container_coords[x]] ])
-                #     container_str.append(s)
-                # print("\n".join(container_str))
 
             Xo, Yo = current_point
-
             # CURRENT POINT'S ITEM SEARCH
             for item_id in items_ids:
                 item = items[item_id]
@@ -707,31 +765,45 @@ class PointGenPack:
                     logger.debug(f"--> {item_id}\n")
 
                 # add item to container
-                for x in range(Xo, Xo + w):
-                    for y in range(Yo, Yo + l):
-                        container_coords[y][x] = 1
+                for y in range(Yo, Yo + l):
+                    container_coords[y][Xo : Xo + w] = array("I", [1] * w)
 
                 # removing item wont affect execution. 'for' breaks below
                 items_ids.remove(item_id)
                 del items[item_id]
 
+                items_area += w * l
                 obj_value += w * l / total_surface
 
                 item.update({"Xo": Xo, "Yo": Yo, "rotated": rotated})
                 self.current_solution[item_id] = item
 
-                A, B = (Xo, Yo + l), (Xo + w, Yo)
-                self._generate_points(container, segments, potential_points, A, B, debug)
-                self._append_segments(segments, A, B, w, l)
+                self._generate_points(
+                    container,
+                    horizontals,
+                    verticals,
+                    potential_points,
+                    Xo,
+                    Yo,
+                    w,
+                    l,
+                    debug,
+                )
+                self._append_segments(horizontals, verticals, Xo, Yo, w, l)
                 break
 
             if debug:
                 self._current_potential_points = deepcopy(potential_points)
             current_point, point_class = self._get_current_point(potential_points)
+        # end of item placement process
+
+        if strip_pack:
+            height_of_solution = max(set(horizontals)) or 1
+            obj_value = items_area / (W * height_of_solution)
 
         return items, obj_value
 
-    # % -----------------------------
+    # % ------------------ solving ---------------------
 
     def _get_current_solution(self):
         """
@@ -749,21 +821,24 @@ class PointGenPack:
             solution[_id] = [Xo, Yo, w, l]
         return solution
 
-    def solve(self, items_sequence=None, debug=False) -> None:
+    def solve(self, sequence=None, debug=False) -> None:
         """
         Solves for all the containers, using the
-        `point generation construction heuristic <https://github.com/AlkiviadisAleiferis/hyperpack-theory/>`_.
+        `point generation construction heuristic
+        <https://github.com/AlkiviadisAleiferis/hyperpack-theory/>`_.
 
         **OPERATION**
-            - Populates ``self.solution`` with solution found for every container.
-            - Populates ``self.obj_val_per_container`` with the utilization of every container.
+            Populates ``self.solution`` with solution found for every container.
+
+            Populates ``self.obj_val_per_container`` with the utilization \
+            of every container.
 
         **PARAMETERS**
-            - ``items_sequence`` : the sequence of ids to create the items to solve for. \
+            ``items_sequence`` : the sequence of ids to create the items to solve for. \
             If None, ``self.items`` will be used. Items used for solving are deepcopied \
             from self.items with corresponding sequence.
 
-            - ``debug`` : If True, debuging mode will be enabled, usefull \
+            ``debug`` : If True, debuging mode will be enabled, usefull \
             only for developing.
 
         **RETURNS**
@@ -772,31 +847,34 @@ class PointGenPack:
         **NOTES**
             Solution is deterministic, and solely dependent on these factors:
 
-            - ``potential_points_strategy`` attribute for the potential points strategy.
-            - ``items_sequence`` **sequence** of the items ids.
+                ``potential_points_strategy`` attribute for the potential points strategy.
+
+                ``items_sequence`` **sequence** of the items ids.
         """
         # deepcopying is done cause items will be removed
         # from items pool after each container is solved
         # self._items shouldn't have same ids with items
-        if items_sequence is None:
+        if sequence is None:
             items = self._items.deepcopy()
         else:
-            items = self._items.deepcopy(items_sequence)
+            items = self._items.deepcopy(sequence)
 
         self.obj_val_per_container = {}
         self.solution = {}
 
-        for container_id, container in self._containers.items():
-            self.solution[container_id] = {}
-            self.obj_val_per_container[container_id] = 0
+        for cont_id in self._containers:
+            self.solution[cont_id] = {}
+            self.obj_val_per_container[cont_id] = 0
             if items == {}:
                 continue
-            items, util = self._construct(container=container, items=items, debug=debug)
-            self.obj_val_per_container[container_id] = util
-            self.solution[container_id] = self._get_current_solution()
+            items, util = self._construct(
+                cont_id, container=self._containers[cont_id], items=items, debug=debug
+            )
+            self.obj_val_per_container[cont_id] = util
+            self.solution[cont_id] = self._get_current_solution()
 
-    # % -----------------------------
-    # figure methods
+    # % -------------- figure methods ---------------
+
     def colorgen(self, index) -> str:
         """
         Method for returning a hexadecimal color for every item
@@ -815,17 +893,19 @@ class PointGenPack:
         """
         Method used for creating figures and showing/exporting them.
 
+        **WARNING**
+            plotly library at least 5.14.0 must be installed in environment,
+            and for image exportation, at least kaleido 0.2.1.
+
+            See :ref:`here<figures_guide>` for
+            detailed explanation of the method.
+
         **OPERATION**
             Create's the solution's figure.
 
         **PARAMETERS**
-            - ``show``: if True, the created figure will be displayed in browser \
+            ``show``: if True, the created figure will be displayed in browser \
             after creation.
-
-        **WARNING**
-            plotly library at least 5.14.0 must be installed in environment,
-            and for image exportation, at least kaleido 0.2.1. See :ref:`here<figures_guide>` for
-            detailed explanation of the method.
         """
 
         if not self.solution:
@@ -855,7 +935,7 @@ class PointGenPack:
         for cont_id in containers_ids:
             fig = go.Figure()
             fig.add_annotation(
-                text=cont_id,
+                text="Powered by Hyperpack",
                 showarrow=False,
                 xref="x domain",
                 yref="y domain",
@@ -863,9 +943,15 @@ class PointGenPack:
                 x=0.5,
                 # The arrow head will be 40% along the y axis, starting from the bottom
                 y=1,
-                font={"size": 20},
+                font={"size": 25, "color": "white"},
             )
-            L = self._containers[cont_id]["L"]
+            fig.update_layout(
+                title=dict(text=f"{cont_id}", font=dict(size=25)),
+                xaxis_title="Container width (x)",
+                yaxis_title="Container Length (y)",
+            )
+
+            L = self._get_container_height(cont_id)
             W = self._containers[cont_id]["W"]
             fig.update_xaxes(
                 range=[-2, W + 2],
@@ -884,10 +970,7 @@ class PointGenPack:
                 zerolinewidth=1,
             )
             for i, item_id in enumerate(self.solution[cont_id]):
-                Xo = self.solution[cont_id][item_id][0]
-                Yo = self.solution[cont_id][item_id][1]
-                w = self.solution[cont_id][item_id][2]
-                l = self.solution[cont_id][item_id][3]
+                Xo, Yo, w, l = self.solution[cont_id][item_id]
                 shape_color = self.colorgen(i)
                 fig.add_shape(
                     type="rect",
@@ -939,18 +1022,76 @@ class PointGenPack:
                         pio.kaleido.scope.default_width = width
                         pio.kaleido.scope.default_height = height
                         pio.kaleido.scope.default_scale = scale
-                        fig.write_image(
-                            export_path / f"{file_name}__{cont_id}.{file_format}"
-                        )
+                        fig.write_image(export_path / f"{file_name}__{cont_id}.{file_format}")
 
                 except Exception as e:
                     error_msg = FigureExportError.FIGURE_EXPORT.format(e)
                     raise FigureExportError(error_msg)
-
             if show:
                 fig.show(config={"responsive": False})
 
-    # % -----------------------------
+    # % ---------------- auxiliary methods ---------------------------------
+
+    def _set_container_height(self):
+        cont_id = self.STRIP_PACK_CONT_ID
+
+        if not self.solution:
+            height = self.containers[cont_id]["W"] * self.MAX_W_L_RATIO
+
+        else:
+            solution = self.solution[cont_id]
+            # height of items stack in solution
+            solution_height = max(
+                [solution[item_id][1] + solution[item_id][3] for item_id in solution] or [0]
+            )
+
+            # preventing container height to drop below point
+            if self._container_min_height is not None:
+                height = max(solution_height, self._container_min_height)
+            else:
+                height = solution_height
+
+        self._container_height = height
+
+    def _get_container_height(self, cont_id="strip-pack-container"):
+        """
+        **Calculates and returns the container's height.**
+
+        In case of bin-packing:
+            it returns the containers height.
+
+        In case of strip packing:
+            if a solution has been found return
+            ``_container_min_height`` OR
+            height of items stack in solution
+
+            if a solution has not been found, return
+            (container Width)* ``self.MAX_W_L_RATIO``
+
+        Used in:
+            ``create_figure``
+
+            ``log_solution``
+        """
+        if self._strip_pack:
+            if not self.solution:
+                return self.containers[cont_id]["W"] * self.MAX_W_L_RATIO
+
+            else:
+                solution = self.solution[cont_id]
+                # height of items stack in solution
+                solution_height = max(
+                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                    or [0]
+                )
+
+                # preventing container height to drop below point
+                if self._container_min_height is not None:
+                    return max(solution_height, self._container_min_height)
+
+                return solution_height
+        else:
+            return self._containers[cont_id]["L"]
 
     def _deepcopy_items(self, items=None):
         if items is None:
@@ -960,9 +1101,7 @@ class PointGenPack:
     def _copy_objective_val_per_container(self, obj_val_per_container=None):
         if obj_val_per_container is None:
             obj_val_per_container = self.obj_val_per_container
-        return {
-            cont_id: obj_val_per_container[cont_id] for cont_id in obj_val_per_container
-        }
+        return {cont_id: obj_val_per_container[cont_id] for cont_id in obj_val_per_container}
 
     def _deepcopy_solution(self, solution=None):
         if solution is None:
@@ -982,7 +1121,9 @@ class PointGenPack:
 
         **OPERATION**
             Orients each item in items set by rotating it
-            (interchange w, l of item). See :ref:`here<orient_items>` for
+            (interchange w, l of item).
+
+            See :ref:`here<orient_items>` for
             detailed explanation of the method.
 
         **PARAMETERS**
@@ -1022,13 +1163,17 @@ class PointGenPack:
         detailed explanation of the method.
 
         **OPERATION**
-            Sorts the ``self.items`` according to ``sorting_by`` parameter guidelines.
+            Sorts the ``self.items``
+
+            according to ``sorting_by`` parameter guidelines.
 
         **PARAMETERS**
-            ``sorting_by`` : (sorting criterion, reverse). If None provided, sorting will be skipped.
+            ``sorting_by`` : (sorting criterion, reverse). If None provided, sorting
+            will be skipped.
 
         **WARNING**
-            Changing the values of ``self.items`` causes resetting of the ``solution`` attribute.
+            Changing the values of ``self.items`` causes resetting of the
+            ``solution`` attribute.
 
         **RETURNS**
             ``None``
@@ -1048,8 +1193,7 @@ class PointGenPack:
             sorted_items.sort(reverse=reverse)
         elif by == "longest_side_ratio":
             sorted_items = [
-                [max(i["w"], i["l"]) / min(i["w"], i["l"]), _id]
-                for _id, i in items.items()
+                [max(i["w"], i["l"]) / min(i["w"], i["l"]), _id] for _id, i in items.items()
             ]
             sorted_items.sort(reverse=reverse)
         else:
@@ -1057,23 +1201,60 @@ class PointGenPack:
 
         self.items = {el[1]: items[el[1]] for el in sorted_items}
 
-    def _calc_obj_value(self):
+    def log_solution(self) -> str:
         """
-        Calculates the objective value
-        using 'obj_val_per_container' attribute.
-        Returns a float (total utilization).
-        In case more than 1 bin is used, last bun's
-        utilization is reduced to push first bin's
-        maximum utilization.
+        Logs the solution.
+
+        If a solution isn't available a proper message is displayed.
         """
-        containers_obj_vals = tuple(self.obj_val_per_container.values())
-        if self._containers_num == 1:
-            return sum([u for u in containers_obj_vals])
-        else:
-            return (
-                sum([u for u in containers_obj_vals[:-1]])
-                + 0.7 * containers_obj_vals[-1]
+        if not getattr(self, "solution", False):
+            hyperLogger.warning("No solving operation has been concluded.")
+            return
+
+        log = ["\nSolution Log:"]
+        percent_items_stored = sum([len(i) for cont_id, i in self.solution.items()]) / len(
+            self._items
+        )
+        log.append(f"Percent total items stored : {percent_items_stored*100:.4f}%")
+
+        for cont_id in self._containers:
+            L = self._get_container_height(cont_id)
+            W = self._containers[cont_id]["W"]
+            log.append(f"Container: {cont_id} {W}x{L}")
+            total_items_area = sum(
+                [i[2] * i[3] for item_id, i in self.solution[cont_id].items()]
             )
+            log.append(f"\t[util%] : {total_items_area*100/(W*L):.4f}%")
+            if self._strip_pack:
+                solution = self.solution[cont_id]
+                # height of items stack in solution
+                max_height = max(
+                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                    or [0]
+                )
+                log.append(f"\t[max height] : {max_height}")
+
+        items_ids = {_id for cont_id, items in self.solution.items() for _id in items}
+        remaining_items = [_id for _id in self._items if _id not in items_ids]
+        log.append(f"\nRemaining items : {remaining_items}")
+        output_log = "\n".join(log)
+        hyperLogger.info(output_log)
+        return output_log
+
+    def reset_container_height(self):
+        """
+        Resets the imaginary (strip packing) container's height.
+        If called form bin packing instace, nothing happens.
+        """
+        if self._strip_pack:
+            self._container_height = (
+                self.containers[self.STRIP_PACK_CONT_ID]["W"] * self.MAX_W_L_RATIO
+            )
+            self._container_min_height = None
+        else:
+            return
+
+    # % ----------- PROPERTIES -----------
 
     @property
     def items(self):
@@ -1087,18 +1268,24 @@ class PointGenPack:
     def items(self):
         raise ItemsError("CANT_DELETE")
 
+    # % -----------------------------
+
     @property
     def containers(self):
         return self._containers
 
     @containers.setter
     def containers(self, value):
+        if self._strip_pack:
+            raise ContainersError("STRIP_PACK_ONLY")
         self._containers = Containers(value, self)
         self._containers_num = len(value)
 
     @containers.deleter
     def containers(self):
         raise ContainersError("CANT_DELETE")
+
+    # % -----------------------------
 
     @property
     def settings(self):
@@ -1112,6 +1299,8 @@ class PointGenPack:
     @settings.deleter
     def settings(self):
         raise SettingsError("CANT_DELETE_SETTINGS")
+
+    # % -----------------------------
 
     @property
     def potential_points_strategy(self):
@@ -1140,247 +1329,118 @@ class PointGenPack:
     def potential_points_strategy(self):
         raise PotentialPointsError("DELETE")
 
+    # % -----------------------------
 
-class HyperSearchProcess(Process):
-    """
-    HyperSearch Process used for multi processing hypersearching.
-    Each process is given a set of potential points strategies, and
-    hyper-searches for the given strategies.
+    @property
+    def container_height(self):
+        return self._container_height
 
-    The search process is coordinated with the other deployed processes
-    using the common array (shared_array). If one of the processes finds
-    maximum value, the process stops and returns.
+    @container_height.setter
+    def container_height(self, value):
+        if not isinstance(value, int) or value < 1:
+            raise DimensionsError("DIMENSION_VALUE")
 
-    Another criterion for stopping is the max available time.
-    """
+        if self._container_min_height is not None:
+            if value < self._container_min_height:
+                raise ContainersError("STRIP_PACK_MIN_HEIGHT")
 
-    def __init__(
-        self,
-        index,
-        containers,
-        items,  # passed items are already sorted
-        settings,
-        strategies_chunk,
-        name,
-        start_time,
-        shared_array,
-        throttle=True,
-        _force_raise_error_index=None,
-    ):
-        super().__init__()
-        self.throttle = throttle
-        self._force_raise_error_index = _force_raise_error_index
-        self.index = index
-        self.shared_array = shared_array
-        self.queue = Queue()
-        self.strategies_chunk = strategies_chunk
-        if settings.get("workers_num", 1) > 1:
-            settings["workers_num"] = 1
-        self.hyper_instance = HyperPack(
-            containers=containers, items=items, settings=settings
+        self._container_height = value
+
+    @container_height.deleter
+    def container_height(self):
+        raise DimensionsError("CANT_DELETE")
+
+    # % -----------------------------
+
+    @property
+    def container_min_height(self):
+        return self._container_min_height
+
+    @container_min_height.setter
+    def container_min_height(self, value):
+        if not isinstance(value, int) or value < 1:
+            raise DimensionsError("DIMENSION_VALUE")
+
+        if value > self._container_height:
+            raise ContainersError("STRIP_PACK_MIN_HEIGHT")
+
+        self._container_min_height = value
+
+    @container_min_height.deleter
+    def container_min_height(self):
+        raise DimensionsError("CANT_DELETE")
+
+
+class LocalSearch(AbstractLocalSearch):
+    def evaluate(self, sequence):
+        self.solve(sequence=sequence, debug=False)
+
+    def get_solution(self):
+        return (
+            self._deepcopy_solution(),
+            self._copy_objective_val_per_container(),
         )
-        self.hyper_instance.start_time = start_time
-        # it is the processe' name
-        self.name = name
 
-    def run(self):
-        try:
-            if self._force_raise_error_index in (self.index, "all"):
-                raise MultiProcessError("testing error")
-            self.hyper_instance.solve(debug=False)
-            best_obj_val = self.hyper_instance._calc_obj_value()
-            best_solution = self.hyper_instance._deepcopy_solution()
-            best_obj_val_per_container = (
-                self.hyper_instance._copy_objective_val_per_container()
-            )
-            best_strategy = None
-            max_obj_value = (
-                self.hyper_instance._containers_num - 0.3
-                if self.hyper_instance._containers_num != 1
-                else 1
-            )
-            for potential_points_strategy in self.strategies_chunk:
-                # set the construction's heuristic potential points strategy
-                # to the current sequence of the search
-                self.hyper_instance._potential_points_strategy = (
-                    potential_points_strategy
-                )
-                self.hyper_instance.local_search(
-                    throttle=self.throttle, _hypersearch=True
-                )
-                new_obj_val = self.hyper_instance._calc_obj_value()
-                if new_obj_val > self.shared_array[self.index]:
-                    best_obj_val_per_container = (
-                        self.hyper_instance._copy_objective_val_per_container()
-                    )
-                    best_obj_val = self.hyper_instance._calc_obj_value()
-                    best_solution = self.hyper_instance._deepcopy_solution()
-                    best_strategy = [point for point in potential_points_strategy]
-                    self.shared_array[self.index] = new_obj_val
-                    if new_obj_val >= max(self.shared_array):
-                        hyperLogger.debug(
-                            f"\t--Process {self.name} --> New best solution: {new_obj_val}\n"
-                        )
-                    if best_obj_val > max_obj_value - 0.0001:
-                        hyperLogger.debug(
-                            f"Process {self.name} acquired MAX objective value"
-                        )
-                        break
-
-                if (
-                    time.time() - self.hyper_instance.start_time
-                    > self.hyper_instance._max_time_in_seconds
-                ) or max(self.shared_array) >= max_obj_value - 0.001:
-                    hyperLogger.debug(
-                        f"Process {self.name}--> Exiting due to surpassed max time or max reached value"
-                    )
-                    break
-
-            self.queue.put(
-                (best_obj_val, best_solution, best_obj_val_per_container, best_strategy)
-            )
-
-        except Exception as e:
-            hyperLogger.error(f"Process {self.name} failed with error: {str(e)}")
-            self.shared_array[self.index] = -1
-            self.queue.put((-1, {}, {}, None))
-
-
-class HyperPack(PointGenPack):
-    """
-    This class extends ``PointGenPack``, utilizing it's solving functionalities
-    by implementing:
-
-        **A.** a hill-climbing, 2-opt exchange local search
-
-        **B.** a hypersearch hyper-heuristic.
-    """
-
-    # Potential points strategies constant suffix
-    STRATEGIES_SUFFIX = ("A__", "B__", "F", "E")
-    # max neighbors parsing per node for large instances
-    MAX_NEIGHBORS_THROTTLE = 2500
-
-    def get_strategies(self, *, _exhaustive: bool = True) -> tuple:
+    def calculate_obj_value(self):
         """
-        Returns the total potential points strategies to be treversed in hypersearch.
+        Calculates the objective value
+        using '`obj_val_per_container`' attribute.
+
+        Returns a float (total utilization).
+
+        In case more than 1 bin is used, last bin's
+        utilization is reduced to push first bin's
+        maximum utilization.
         """
-        if _exhaustive:
-            return [
-                x + self.STRATEGIES_SUFFIX
-                for x in list(permutations(["A", "B", "C", "D", "A_", "B_"], 6))
-            ]
+        containers_obj_vals = tuple(self.obj_val_per_container.values())
+        if self._containers_num == 1:
+            return sum([u for u in containers_obj_vals])
         else:
-            # for testing or customization purposes
-            return constants.DEFAULT_POTENTIAL_POINTS_STRATEGY_POOL
+            return sum([u for u in containers_obj_vals[:-1]]) + 0.7 * containers_obj_vals[-1]
 
-    def _single_process_hypersearch(self, strategies: tuple, throttle: bool):
-        hyperLogger.debug("Solving with single core")
-        # get first solution for comparison
+    def get_init_solution(self):
         self.solve(debug=False)
-        best_obj_val = self._calc_obj_value()
+        # deepcopying solution
         best_solution = self._deepcopy_solution()
         best_obj_val_per_container = self._copy_objective_val_per_container()
-        best_strategy = self.DEFAULT_POTENTIAL_POINTS_STRATEGY
+        return best_solution, best_obj_val_per_container
 
-        max_obj_value = self._containers_num - 0.3 if self._containers_num != 1 else 1
+    def extra_node_operations(self, **kwargs):
+        if self._strip_pack:
+            # new height is used for the container
+            # for neighbors of new node
+            self._set_container_height()
+            self._heights_history.append(self._container_height)
 
-        for potential_points_strategy in strategies:
-            # set the construction heuristic's potential points strategy
-            # to the current strategy of the search
-            # used in '_get_current_point' method
-            self._potential_points_strategy = potential_points_strategy
-            self.local_search(throttle=throttle, _hypersearch=True)
-            # local search has updated self.solution
-            # and self.obj_val_per_container
-            new_obj_val = self._calc_obj_value()
-            if new_obj_val > best_obj_val:
-                # retain best found in memory
-                best_obj_val_per_container = self._copy_objective_val_per_container()
-                best_obj_val = new_obj_val
-                best_solution = self._deepcopy_solution()
-                best_strategy = [point for point in potential_points_strategy]
-                hyperLogger.debug(f"\tNew best solution: {best_obj_val}\n")
-            if new_obj_val >= max_obj_value - 0.0001:
-                hyperLogger.debug("Terminating due to max objective value obtained")
-                break
-            if time.time() - self.start_time > self._max_time_in_seconds:
-                hyperLogger.debug("Terminating due to surpassed max time")
-                break
+    def node_check(self, new_obj_value, best_obj_value):
+        """
+        Used in local_search.
+        Compares new solution value to best for accepting new node. It's the
+        mechanism for propagating towards new accepted better solutions/nodes.
 
-        return (best_solution, best_obj_val_per_container, best_strategy)
+        In bin-packing mode, a simple comparison using solution_operator is made.
 
-    def _multi_process_hypersearch(
-        self, strategies: tuple, throttle: bool, _force_raise_error_index
-    ):
-        strategies_per_process = math.ceil(len(strategies) / self._workers_num)
-        strategies_chunks = [
-            strategies[i : i + strategies_per_process]
-            for i in range(0, len(strategies), strategies_per_process)
-        ]
+        In strip-packing mode, extra conditions will be tested:
 
-        processes = []
-        shared_Array = Array("d", [0] * len(strategies_chunks))
+            - If ``self._container_min_height`` is ``None``:
+                The total of items  must be in solution. \
+                If not, solution is rejected.
 
-        for i, strategies_chunk in enumerate(strategies_chunks):
-            processes.append(
-                HyperSearchProcess(
-                    index=i,
-                    containers=self._containers.deepcopy(),
-                    items=self.items.deepcopy(),
-                    settings=self._settings,
-                    strategies_chunk=strategies_chunk,
-                    name=f"hypersearch_{i}",
-                    start_time=self.start_time,
-                    shared_array=shared_Array,
-                    throttle=throttle,
-                    _force_raise_error_index=_force_raise_error_index,
-                )
-            )
-        for p in processes:
-            p.start()
-        for p in processes:
-            p.join()
-        # at this point the processes concluded operation
-        # get winning process and update instance data
-        shared_list = list(shared_Array)
+            - If ``self._container_min_height`` is not ``None``:
+                Number of items in solution doesn't affect \
+                solution choice.
+        """
+        better_solution = new_obj_value > best_obj_value
 
-        # check if all/some processes failed
-        if max(shared_list) == -1:
-            raise MultiProcessError("ALL_PROCESSES_FAILED")
-        elif -1 in shared_list:
-            hyperLogger.error(
-                "Some of the processes raised an exception. Please check logs."
-            )
+        if not self._strip_pack:
+            return better_solution
 
-        win_process_index = shared_list.index(max(shared_list))
-        win_process = processes[win_process_index]
-        win_metrics = win_process.queue.get()
-        hyperLogger.debug(f"\nWinning Process {win_process.name} found max")
-        hyperLogger.debug(f"\tobj_val = {win_metrics[0]}")
-        hyperLogger.debug(f"\tsequence = {win_metrics[3]}")
-        best_solution = self._deepcopy_solution(win_metrics[1])
-        best_obj_val_per_container = self._copy_objective_val_per_container(
-            win_metrics[2]
-        )
-        if win_metrics[3] is None:
-            best_strategy = None
+        if self._container_min_height is None:
+            extra_cond = len(self.solution[self.STRIP_PACK_CONT_ID]) == len(self._items)
         else:
-            best_strategy = [point for point in win_metrics[3]]
-        win_process.queue.close()
+            extra_cond = True
 
-        # Log rest of the processes
-        # UNCOMMENT FOR EXTRA DEBUGGING ON PROCESSES
-        # for p_index, p in enumerate(processes):
-        #     if p_index == win_proc_index:
-        #         continue
-        #     metrics = p.queue.get()
-        #     hyperLogger.debug(f"\nProcess '{p.name}' complete")
-        #     hyperLogger.debug(f"\tobj_val = {metrics[0]}")
-        #     hyperLogger.debug(f"\tsequence = {metrics[3]}")
-        #     p.queue.close()
-
-        return (best_solution, best_obj_val_per_container, best_strategy)
+        return extra_cond and better_solution
 
     def local_search(
         self, *, throttle: bool = True, _hypersearch: bool = False, debug: bool = False
@@ -1401,7 +1461,8 @@ class HyperPack(PointGenPack):
             in big instances of the problem. Corresponds to ~ 72 items instance
             (max 2500 neighbors).
 
-            ``_hypersearch``: Either standalone (False), or part of a superset search (used by hypersearch).
+            ``_hypersearch``: Either standalone (False), or part of a
+            superset search (used by hypersearch).
 
             ``debug``: for developing debugging.
 
@@ -1409,104 +1470,178 @@ class HyperPack(PointGenPack):
             ``None``
         """
 
-        # if not deployed by hypersearch
-        # set default points sequence
         if not _hypersearch:
-            self.start_time = time.time()
+            start_time = time.time()
         else:
+            start_time = self.start_time
             hyperLogger.debug(
                 f"\t\tCURRENT POTENTIAL POINTS STRATEGY: {self._potential_points_strategy}"
             )
 
-        # INIT BEST SOLUTION s*
-        self.solve(debug=False)
-        # deepcopying solution
-        best_solution = self._deepcopy_solution()
-        best_obj_val_per_container = self._copy_objective_val_per_container()
-        best_obj_value = self._calc_obj_value()
-
-        max_obj_value = self._containers_num - 0.3 if self._containers_num != 1 else 1
-
-        # INIT NEIGHBORHOOD
-        # node_seq is the original sequence (node),
-        # from which all the neighbors/next nodes are produced
-        node_seq = list(self._items)
-        items_num = len(self._items)
-
-        node_num = 1
-        continue_criterion = True
-
-        max_neighbors_num = items_num * (items_num - 1) / 2
-        if throttle and max_neighbors_num > self.MAX_NEIGHBORS_THROTTLE:
-            max_neighbors_num = self.MAX_NEIGHBORS_THROTTLE
-
-        while continue_criterion:
-            node_num += 1
-            out_of_time = False
-            neighbor_found, processed_neighbors = (False, 0)
-            global_optima = False
-            break_ = False
-            # begin neighborhood search
-            for i in range(items_num):
-                for j in range(i + 1, items_num):
-                    current_seq = [item_id for item_id in node_seq]
-                    current_seq[i], current_seq[j] = current_seq[j], current_seq[i]
-
-                    self.solve(items_sequence=current_seq, debug=False)
-                    new_obj_value = self._calc_obj_value()
-                    processed_neighbors += 1
-
-                    if new_obj_value > best_obj_value:
-                        if debug:
-                            hyperLogger.debug("-- new node found")
-                        # deepcopying solution
-                        best_obj_value = new_obj_value
-                        best_obj_val_per_container = (
-                            self._copy_objective_val_per_container()
-                        )
-                        best_solution = self._deepcopy_solution()
-
-                        # set new node
-                        node_seq = [item_id for item_id in current_seq]
-
-                        neighbor_found = True
-                        global_optima = best_obj_value >= max_obj_value - 0.0001
-
-                    out_of_time = (
-                        time.time() - self.start_time >= self._max_time_in_seconds
-                    )
-                    max_neighbors = processed_neighbors >= max_neighbors_num
-
-                    break_ = (
-                        out_of_time or neighbor_found or global_optima or max_neighbors
-                    )
-                    if break_:
-                        break
-
-                if break_:
-                    break
-
-            # no improving neighbor found in neighborhood
-            # or out of time
-            # or global_optima
-            # local search terminates
-            if debug:
-                hyperLogger.debug(f"\tnode num: {node_num}")
-                hyperLogger.debug(f"\tbest obj_val: {best_obj_value}")
-                hyperLogger.debug(f"\tprocessed_neighbors : {processed_neighbors}\n")
-                if out_of_time:
-                    hyperLogger.debug("-- out of time - exiting")
-                elif not neighbor_found:
-                    hyperLogger.debug("-- no new node found - local optima - exiting")
-                elif global_optima:
-                    hyperLogger.debug("-- global optimum found - exiting")
-
-            # update continue criterion
-            continue_criterion = neighbor_found and not out_of_time and not global_optima
+        if self._strip_pack:
+            self._heights_history = [self._container_height]
 
         # after local search has ended, restore optimum values
-        self.obj_val_per_container = best_obj_val_per_container
-        self.solution = best_solution
+        # retain_solution = (solution, obj_val_per_container)
+        retained_solution = super().local_search(
+            list(self._items),
+            throttle,
+            start_time,
+            self._max_time_in_seconds,
+            debug=debug,
+        )
+        self.solution, self.obj_val_per_container = retained_solution
+
+
+class HyperPack(PointGenPack, LocalSearch):
+    """
+    This class extends ``PointGenPack``, utilizing it's solving functionalities
+    by implementing:
+
+        **A.** a hill-climbing, 2-opt exchange local search
+
+        **B.** a hypersearch hyper-heuristic.
+    """
+
+    # Potential points strategies constant suffix
+    STRATEGIES_SUFFIX = ("A__", "B__", "F", "E")
+    STRATEGIES_SUFFIX_STRIPACK = ("B__", "A__", "F", "E")
+    # max neighbors parsing per node for large instances
+
+    def _check_solution(self, new_obj_val, best_obj_value):
+        if new_obj_val > best_obj_value:
+            return True
+        else:
+            return False
+
+    def _get_array_optimum(self, array):
+        """
+        Using max for maximization else min for minimization.
+        """
+        if getattr(self, "OPTIMIZATION") == "MAX":
+            return max(array)
+        else:
+            return min(array)
+
+    def get_strategies(self, *, _exhaustive: bool = True) -> tuple:
+        """
+        Returns the total potential points strategies to be treversed in hypersearch.
+        """
+        suffixes = (
+            self.STRATEGIES_SUFFIX_STRIPACK if self._strip_pack else self.STRATEGIES_SUFFIX
+        )
+        if _exhaustive:
+            points = set(self.DEFAULT_POTENTIAL_POINTS_STRATEGY)
+            points_to_permutate = points.difference(set(suffixes))
+            return [
+                x + self.STRATEGIES_SUFFIX
+                for x in list(
+                    permutations(list(points_to_permutate), len(points_to_permutate))
+                )
+            ]
+        else:
+            # for testing or customization purposes
+            return constants.DEFAULT_POTENTIAL_POINTS_STRATEGY_POOL
+
+    def _single_process_hypersearch(self, strategies: tuple, throttle: bool):
+        hyperLogger.debug("Solving with single core")
+
+        # get first solution for comparison
+        retain_solution = self.get_init_solution()
+        best_obj_value = self.calculate_obj_value()
+        optimum_obj_value = self.get_optimum_objective_val()
+        best_strategy = self.DEFAULT_POTENTIAL_POINTS_STRATEGY
+
+        for strategy in strategies:
+            # set the construction heuristic's potential points strategy
+            self._potential_points_strategy = strategy
+
+            self.local_search(throttle=throttle, _hypersearch=True)
+            new_obj_val = self.calculate_obj_value()
+
+            if self._check_solution(new_obj_val, best_obj_value):
+                best_obj_value = new_obj_val
+                retain_solution = self.get_solution()
+                best_strategy = [point for point in strategy]
+                hyperLogger.debug(f"\tNew best solution: {best_obj_value}\n")
+
+                if self.global_check(new_obj_val, optimum_obj_value):
+                    hyperLogger.debug("Terminating due to max objective value obtained")
+                    break
+
+            if time.time() - self.start_time > self._max_time_in_seconds:
+                hyperLogger.debug("Terminating due to surpassed max time")
+                break
+        return *retain_solution, best_strategy
+
+    def _multi_process_hypersearch(
+        self, strategies: tuple, throttle: bool, _force_raise_error_index
+    ):
+        strategies_per_process = math.ceil(len(strategies) / self._workers_num)
+        strategies_chunks = [
+            strategies[i : i + strategies_per_process]
+            for i in range(0, len(strategies), strategies_per_process)
+        ]
+
+        processes = []
+        min_val = 0
+        shared_Array = Array("d", [min_val] * len(strategies_chunks))
+        container_min_height = getattr(self, "container_min_height", None)
+        for i, strategies_chunk in enumerate(strategies_chunks):
+            processes.append(
+                HyperSearchProcess(
+                    index=i,
+                    strip_pack=self._strip_pack,
+                    containers=self._containers.deepcopy(),
+                    items=self.items.deepcopy(),
+                    settings=self._settings,
+                    strategies_chunk=strategies_chunk,
+                    name=f"hypersearch_{i}",
+                    start_time=self.start_time,
+                    shared_array=shared_Array,
+                    throttle=throttle,
+                    container_min_height=container_min_height,
+                    _force_raise_error_index=_force_raise_error_index,
+                )
+            )
+        for p in processes:
+            p.start()
+        for p in processes:
+            p.join()
+        # at this point the processes concluded operation
+        shared_list = list(shared_Array)
+
+        # check if all/some processes failed
+        if max(shared_list) == -1:
+            raise MultiProcessError("ALL_PROCESSES_FAILED")
+        elif -1 in shared_list:
+            hyperLogger.error("Some of the processes raised an exception. Please check logs.")
+
+        # get winning process and update instance data
+        shared_list_optimum = self._get_array_optimum(shared_list)
+        win_process_index = shared_list.index(shared_list_optimum)
+        win_process = processes[win_process_index]
+        win_metrics = win_process.queue.get()
+
+        best_solution = self._deepcopy_solution(win_metrics[1])
+        best_obj_val_per_container = self._copy_objective_val_per_container(win_metrics[2])
+        if win_metrics[3] is None:
+            best_strategy = None
+        else:
+            best_strategy = [point for point in win_metrics[3]]
+
+        hyperLogger.debug(
+            f"\nWinning Process {win_process.name} found max\n"
+            f"\tobj_val = {win_metrics[0]}\n\tsequence = {win_metrics[3]}"
+        )
+        win_process.queue.close()
+
+        # Log rest of the processes
+        # UNCOMMENT FOR EXTRA DEBUGGING ON PROCESSES
+        for p in processes:
+            p.queue.close()
+
+        return (best_solution, best_obj_val_per_container, best_strategy)
 
     def hypersearch(
         self,
@@ -1523,7 +1658,8 @@ class HyperPack(PointGenPack):
         utilizing hill climbing local search per generation.
 
         **OPERATION**
-            Solves using ``local_search`` for different ``potential_points_strategy`` values.
+            Solves using ``local_search`` for different
+            ``potential_points_strategy`` values.
 
             - Updates ``self.solution`` with the best solution found.
             - Updates ``self.obj_val_per_container`` with the best values.
@@ -1538,7 +1674,8 @@ class HyperPack(PointGenPack):
             solving operations start. See :ref:`here<sort_items>` for
             detailed explanation of the method.
 
-            ``throttle`` boolean **(keyword only)** passed to local search. Affects large instances of the problem.
+            ``throttle`` boolean **(keyword only)** passed to local search.
+            Affects large instances of the problem.
 
             ``_exhaustive`` boolean **(keyword only)** creates exhaustive search for every
             possible potential points strategy. If false, the search uses predefined
@@ -1563,11 +1700,12 @@ class HyperPack(PointGenPack):
         # exhaustive hypersearch creates all the different potential
         # points strategies, and deployes local search on everyone of them
         # until stopping criteria are met
-        strategies = self.get_strategies(_exhaustive=_exhaustive)
 
         hyperLogger.info("Initiating Hypersearch.")
 
-        best_solution, best_obj_val_per_container, best_strategy = (
+        strategies = self.get_strategies(_exhaustive=_exhaustive)
+
+        self.solution, self.obj_val_per_container, self.best_strategy = (
             self._single_process_hypersearch(strategies, throttle)
             if self._workers_num == 1
             else self._multi_process_hypersearch(
@@ -1575,41 +1713,7 @@ class HyperPack(PointGenPack):
             )
         )
 
-        hyperLogger.info("Hypersearch terminates.")
-
-        # SET BEST SOLUTION
-        self.solution = best_solution
-        self.obj_val_per_container = best_obj_val_per_container
-        self.best_strategy = best_strategy
+        hyperLogger.info("Hypersearch terminated")
 
         total_time = time.time() - self.start_time
         hyperLogger.debug(f"Execution time : {total_time} [sec]")
-
-    def log_solution(self) -> str:
-        """
-        Logs the solution.
-
-        If a solution isn't available a proper message is displayed.
-        """
-        if not getattr(self, "solution", False):
-            hyperLogger.warning("No solving operation has been concluded.")
-            return
-
-        log = ["\nSOLUTION LOG:"]
-        percent_items_stored = sum(
-            [len(i) for cont_id, i in self.solution.items()]
-        ) / len(self._items)
-        log.append(f"Percent total items stored : {percent_items_stored*100:.4f}%")
-        for cont_id in self._containers:
-            W, L = self._containers[cont_id]["W"], self._containers[cont_id]["L"]
-            log.append(f"Container: {cont_id} {W}x{L}")
-            total_items_area = sum(
-                [i[2] * i[3] for item_id, i in self.solution[cont_id].items()]
-            )
-            log.append(f"\t[util%] : {total_items_area*100/(W*L):.4f}%")
-        items_ids = {_id for cont_id, items in self.solution.items() for _id in items}
-        remaining_items = [_id for _id in self._items if _id not in items_ids]
-        log.append(f"\nRemaining items : {remaining_items}")
-        output_log = "\n".join(log)
-        hyperLogger.info(output_log)
-        return output_log

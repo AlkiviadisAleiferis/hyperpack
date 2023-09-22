@@ -17,3 +17,4 @@ PointGenPack
 
 .. autoclass:: heuristics.PointGenPack
     :members:
+    :private-members:

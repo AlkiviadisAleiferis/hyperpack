@@ -1,4 +1,4 @@
-SOLUTION_LOG_ITEMS_STRATEGY = """SOLUTION LOG:
+SOLUTION_LOG_ITEMS_STRATEGY = """Solution Log:
 Percent total items stored : {:.4f}%"""
 
 SOLUTION_STRING_CONTAINER = """

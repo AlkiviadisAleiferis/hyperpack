@@ -16,6 +16,12 @@ def test_data():
 
 
 @pytest.fixture
+def HyperSearchProcess_mock(mocker):
+    process_mock = mocker.patch("hyperpack.heuristics.HyperSearchProcess")
+    return process_mock
+
+
+@pytest.fixture
 def cpu_count_mock(mocker):
     mocker.patch("hyperpack.heuristics.cpu_count", return_value=2)
     return cpu_count_mock

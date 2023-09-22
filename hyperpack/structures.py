@@ -40,22 +40,8 @@ class Dimensions(UserDict):
         self.data = {}
         for key in dimensions:
             self.check_data(key, dimensions[key])
-        self.update(dimensions)
+            self.data[key] = dimensions[key]
 
-        if self.instance is not None:
-            self.reset_instance_attrs()
-
-    def __setitem__(self, key, item):
-        """
-        This method takes place on operations as this:
-        Structures["structure_id"]["dimension"] = value.
-
-        Resetting of attributes is enforced through stored instance.
-
-        Proper dimensions format enforced.
-        """
-        self.check_data(key, item)
-        self.data[key] = item
         if self.instance is not None:
             self.reset_instance_attrs()
 
@@ -65,7 +51,7 @@ class Dimensions(UserDict):
 
     def check_data(self, key, item):
         """
-        key must be "W" or "L".
+        key must be "W" or "L" / "w" or "l".
         value must be positive number.
         """
         if key not in self.proper_keys:
@@ -76,6 +62,23 @@ class Dimensions(UserDict):
                 raise DimensionsError
         except Exception:
             raise DimensionsError("DIMENSION_VALUE")
+
+    def __setitem__(self, key, item):
+        """
+        This method takes place on operations as this:
+        Structures["structure_id"]["dimension"] = value.
+
+        Resetting of attributes is enforced through stored instance.
+
+        Proper dimensions format enforced.
+        """
+        if self.instance._strip_pack and self.proper_keys == {"W", "L"} and self.data != {}:
+            raise ContainersError("STRIP_PACK_ONLY")
+
+        self.check_data(key, item)
+        self.data[key] = item
+        if self.instance is not None:
+            self.reset_instance_attrs()
 
     def __delitem__(self, key):
         raise DimensionsError("CANT_DELETE")
@@ -117,6 +120,9 @@ class AbstractStructure(UserDict):
 
         Proper structure_id format enforced.
         """
+        if self.instance._strip_pack and self.__class__.__name__ == "Containers":
+            raise ContainersError("STRIP_PACK_ONLY")
+
         self.data[structure_id] = self.get_structure_dimensions(structure_id, new_dims)
         if self.instance is not None:
             self.reset_instance_attrs()
@@ -152,9 +158,13 @@ class AbstractStructure(UserDict):
         for structure_id in self.data:
             width = self.data[structure_id][width_key]
             length = self.data[structure_id][length_key]
-            strings_list.append(
-                f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
-            )
+
+            if self.instance._strip_pack and class_name == "Containers":
+                strings_list.append(f"  - id: {structure_id}\n    width: {width}\n")
+            else:
+                strings_list.append(
+                    f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
+                )
         return "\n".join(strings_list)
 
     def deepcopy(self, ids_sequence=None):

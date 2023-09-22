@@ -31,16 +31,11 @@ these parameters to skip these operations.
 
 After solving has finished, the solution can be found in :ref:`problem.solution<solution_structure>` instance attribute.
 
-What this method generally does is it deploys a local search for every potential points strategy sequence available.
-That means all the possible permutations of the potential points ``("A", "B", "C", "D", "A_", "B_", "A__", "B__", "E", "F")``
-(``_`` is used in place of ``'`` and ``__`` in place of ``"``).
+What this method generally does is **it deploys a local search for every potential points strategy sequence available**.
+That means all the possible permutations of the potential points.
 
 For more on potential points see the `theory <https://github.com/AlkiviadisAleiferis/hyperpack-theory/blob/main/a_hyper_heuristic_for_solving_variants_of_the_2D_binpacking_problem.pdf>`_
 or :ref:`here<Potential points concept>`
-
-
-Although to constraint the search, permutation is contained to the most probable to cause solution quality impact. That is
-``("A", "B", "C", "D", "A_", "B_")`` an leaves the trailing ``("A__", "B__", "E", "F")`` untouched.
 
 In case multiprocessing is used, the pool of strategies is divided to chuncks, and distributed to the generated
 subprocesses. Every subprocess executes a local search for every strategy in the chunck, and is coordinated

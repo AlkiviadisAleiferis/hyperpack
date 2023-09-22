@@ -118,17 +118,20 @@ if __name__ == "__main__":
             "show": True,  # True/False
         }
 
-        pr = cProfile.Profile()
-        pr.enable()
-
         a = HyperPack(containers=containers, items=items, settings=settings)
         print("Number of items : ", len(a.items))
         print(a.containers)
+
+        pr = cProfile.Profile()
+        pr.enable()
+
         a.local_search(debug=True)
 
         pr.disable()
-        ps = pstats.Stats(pr).sort_stats("cumulative")
+        ps = pstats.Stats(pr)
+        ps.strip_dirs().sort_stats("cumulative")
         ps.print_stats()
+        ps.dump_stats("profiler.prof")
 
     else:
         print(__doc__)
