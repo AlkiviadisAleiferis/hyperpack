@@ -11,7 +11,7 @@
 
 .. image:: https://img.shields.io/badge/maintainer-alkiviadis.aliferis@gmail.com-blue.svg
 
-.. image:: https://img.shields.io/badge/pypi-v1.0.0-blue.svg
+.. image:: https://img.shields.io/badge/pypi-v1.1.0-blue.svg
 
 .. |check_| raw:: html
 
