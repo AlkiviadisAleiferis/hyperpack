@@ -24,17 +24,17 @@ class ContainersError(ErrorLoggingException):
     TYPE = "containers must be of type dict."
     ID_TYPE = "container id must be of type str."
     CANT_DELETE_STRUCTURE = "Can't remove any more containers."
-    CANT_DELETE = "Can't delete containers structure."
-    STRIP_PACK_ONLY = "Can't assign or change containers when solving strip-packing."
+    CANT_DELETE = "Can't delete Containers structure."
+    STRIP_PACK_ONLY = "Can't assign or change containers when solving a strip-packing problem."
     STRIP_PACK_MIN_HEIGHT = "Min container height must be less or equal to actual height."
 
 
 class ItemsError(ErrorLoggingException):
     MISSING = "items missing."
     TYPE = "items must be of type dict."
-    ID_TYPE = "item id must be of type str."
+    ID_TYPE = "items' ids must be of type str."
     CANT_DELETE_STRUCTURE = "Can't remove any more items."
-    CANT_DELETE = "Can't delete items structure."
+    CANT_DELETE = "Can't delete Items structure."
 
 
 class SettingsError(ErrorLoggingException):

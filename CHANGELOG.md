@@ -9,6 +9,10 @@ with advance notice in the Deprecations section of releases.
 
 # [1.1.1] - CHECK DATE BEFORE PUBLISHING
 
+### Changes
+
+- Added ``generate_problem_data`` function for quickstarting purposes.
+
 ### Changes (dev)
 
 New command for version checking.

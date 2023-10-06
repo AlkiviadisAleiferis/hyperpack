@@ -13,14 +13,6 @@
 
 .. image:: https://img.shields.io/badge/pypi-v1.1.0-blue.svg
 
-.. |check_| raw:: html
-
-    <input checked=""  disabled="" type="checkbox">
-
-.. |uncheck_| raw:: html
-
-    <input disabled="" type="checkbox">
-
 Problem description
 -------------------
 
@@ -55,6 +47,38 @@ Install using pip:
 
     ``pip install hyperpack``
 
+Quickstart
+------------
+
+A quickstart for testing the library can be made through the ``generate_problem_data``
+utility function.
+
+.. code-block:: python
+
+    >>> from hyperpack import generate_problem_data, HyperPack
+    >>> problem_data = hyperpack.generate_problem_data(containers_num=2)
+    Containers number =  2
+    Containers:
+    {
+        "container-0": {
+            "W": 48,
+            "L": 53
+        },
+        "container-1": {
+            "W": 53,
+            "L": 49
+        }
+    }
+    Items number =  60
+    >>> problem = HyperPack(**problem_data)
+    >>> problem.hypersearch()
+    >>> problem.create_figure(show=True)
+    >>> # figure opened in default browser
+    >>>
+    >>> # to see parameter explanation do:
+    >>> help(generate_problem_data)
+
+
 Defining the problem
 ---------------------
 
@@ -88,11 +112,11 @@ with provided guidelines. The items and containers (bins) structure:
     }
 
     items = {
-        "item_0_id": {
+        "item-0-id": {
             "w": int, # > 0 item's width
             "l": int, # > 0 item's length
         },
-        "item_1_id": {
+        "item-1-id": {
             "w": int, # > 0 item's width
             "l": int, # > 0 item's length
         },
@@ -135,11 +159,11 @@ Use the ``log_solution`` method to log an already found solution:
 .. code-block:: python
 
     >>> problem.log_solution()
-    SOLUTION LOG:
+    Solution Log:
     Percent total items stored : 100.0000%
-    Container: container_0 60x30
+    Container: container-0-id 60x30
             [util%] : 100.0000%
-    Container: container_1 60x50
+    Container: container-1-id 60x50
             [util%] : 91.2000%
 
     Remaining items : []
@@ -170,16 +194,16 @@ Future development
 Many ideas and concepts can be implemented in this library. The most propable depending on
 the community's interest:
 
-    - Augmentation of the objective function to deal with a bigger plethora of problems. |uncheck_|
-    - Implementation of the strip packing problem. |check_|
-    - Django integrations. |uncheck_|
-    - Large Neighborhood Search for big instances of the problem. |uncheck_|
-    - Other shapes of the container. |uncheck_|
-    - A dynamic live terminal display. |uncheck_|
-    - Execution speed optimization. |uncheck_|
-    - Multiprocessing for the local search alone (combined with LNS). |uncheck_|
-    - More detailed figures. |uncheck_|
-    - Figures with other libraries (matplotlib). |uncheck_|
+    - Augmentation of the objective function to deal with a bigger plethora of problems.
+    - Implementation of the strip packing problem.
+    - Django integrations.
+    - Large Neighborhood Search for big instances of the problem.
+    - Other shapes of the container.
+    - A dynamic live terminal display.
+    - Execution speed optimization.
+    - Multiprocessing for the local search alone (combined with Large Neighborhood Search).
+    - More detailed figures.
+    - Figures with other libraries (matplotlib).
 
 If interested with development with some of these features please contact me.
 
