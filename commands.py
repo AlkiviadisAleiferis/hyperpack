@@ -162,6 +162,7 @@ if __name__ == "__main__":
 
         # read __init__ version
         import hyperpack
+
         print("\thyperpack.__verion__ = ", hyperpack.__version__)
         if not version == hyperpack.__version__:
             raise print("\nVersion doesn't check.")

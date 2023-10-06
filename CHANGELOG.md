@@ -7,6 +7,19 @@ with advance notice in the Deprecations section of releases.
 
 ---------------------------
 
+# [1.1.1] - CHECK DATE BEFORE PUBLISHING
+
+### Changes (dev)
+
+New command for version checking.
+
+
+### Improved docs
+
+- Improved doctrings and documentation.
+
+---------------------------
+
 # [1.1.0] - 2023-09-21
 
 

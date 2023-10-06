@@ -10,6 +10,7 @@ from .exceptions import (
 )
 from .heuristics import HyperPack, HyperSearchProcess, PointGenPack
 from .structures import Containers, Dimensions, Items
+from .utils import generate_problem_data
 
 __all__ = [
     "HyperPack",
