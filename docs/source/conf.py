@@ -12,6 +12,7 @@ project = "hyperpack"
 copyright = "2023, Alkiviadis Aleiferis"
 author = hyperpack.__author__
 release = hyperpack.__version__
+version = hyperpack.__version__
 
 extensions = [
     "sphinx.ext.autosectionlabel",

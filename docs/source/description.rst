@@ -9,7 +9,8 @@ Description
 Problem description
 -------------------
 
-The hyperpack library is an API for solving instances of the `2D Binpacking problem`_.
+The hyperpack library is an API for solving instances of the `2D Binpacking problem`_ and
+also - as of v1.1.0 - strip packing instances!.
 Many different variations can be created and solved, accordind to the instantiation data.
 
 The theory of this library's implementation can be found in author's
