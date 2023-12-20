@@ -100,7 +100,9 @@ class HyperSearchProcess(Process):
 
                     global_optima = is_global(new_obj_value, optimum_obj_value)
                     if global_optima:
-                        hyperLogger.debug(f"Process {self.name} acquired MAX objective value")
+                        hyperLogger.debug(
+                            f"Process {self.name} acquired MAX objective value"
+                        )
                         break
 
                 # check if any process has reached global optimum
@@ -108,7 +110,9 @@ class HyperSearchProcess(Process):
                 out_of_time = time() - start_time > max_time_in_seconds
 
                 if out_of_time:
-                    hyperLogger.debug(f"Process {self.name}--> Exiting: surpassed max time")
+                    hyperLogger.debug(
+                        f"Process {self.name}--> Exiting: surpassed max time"
+                    )
                     break
 
                 elif global_optima:
@@ -120,6 +124,8 @@ class HyperSearchProcess(Process):
 
         # % ------------ Exception case -----------
         except Exception as e:
-            hyperLogger.exception(f"Process {self.name} failed with error: \n\t{str(e)}\n")
+            hyperLogger.exception(
+                f"Process {self.name} failed with error: \n\t{str(e)}\n"
+            )
             self.shared_array[self.index] = -1
             self.queue.put((-1, {}, {}, None))

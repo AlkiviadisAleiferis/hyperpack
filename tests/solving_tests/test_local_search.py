@@ -50,9 +50,11 @@ def test_max_time(caplog):
 
 
 def test_two_bins_AND_logging():
+    from hyperpack.structures import Items
+
     settings = {"workers_num": 1}
     containers = {"c_a": {"W": 25, "L": 25}, "c_b": {"W": 25, "L": 20}}
-    items = HyperPack._deepcopy_items(None, items_a)
+    items = Items(items_a).deepcopy()
     prob = HyperPack(containers=containers, items=items, settings=settings)
     prob.local_search()
 
@@ -91,11 +93,13 @@ def test_throttle(caplog):
 
 
 def test_doesnt_change_items_attribute():
+    from hyperpack.structures import Items
+
     settings = {"workers_num": 1}
     containers = {"c_a": {"W": 25, "L": 25}, "c_b": {"W": 25, "L": 20}}
-    items = HyperPack._deepcopy_items(None, items_a)
+    items = Items(items_a).deepcopy()
     prob = HyperPack(containers=containers, items=items, settings=settings)
-    items = prob._deepcopy_items()
+    items = prob._items.deepcopy()
     prob.local_search()
     assert prob.items == items
 
@@ -103,7 +107,9 @@ def test_doesnt_change_items_attribute():
 def test_no_solution(caplog):
     settings = {"workers_num": 1}
     containers = {"c_a": {"W": 1, "L": 1}}
-    prob = HyperPack(containers=containers, items={"a": {"w": 2, "l": 2}}, settings=settings)
+    prob = HyperPack(
+        containers=containers, items={"a": {"w": 2, "l": 2}}, settings=settings
+    )
     prob.local_search()
     assert prob.solution == {"c_a": {}}
 

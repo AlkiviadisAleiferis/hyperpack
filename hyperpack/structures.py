@@ -21,7 +21,7 @@ class Dimensions(UserDict):
         # it is propagated from Structure
         self.instance = instance
         if reference_structure not in {"item", "container"}:
-            raise DimensionsError("DIMENSIONS_REFERENCE_OBJECT")
+            raise DimensionsError(DimensionsError.DIMENSIONS_REFERENCE_OBJECT)
 
         if reference_structure == "item":
             self.proper_keys = {"w", "l"}
@@ -29,13 +29,13 @@ class Dimensions(UserDict):
             self.proper_keys = {"W", "L"}
 
         if dimensions is None or dimensions == {}:
-            raise DimensionsError("DIMENSIONS_MISSING")
+            raise DimensionsError(DimensionsError.DIMENSIONS_MISSING)
 
         if not isinstance(dimensions, dict):
-            raise DimensionsError("DIMENSIONS_TYPE")
+            raise DimensionsError(DimensionsError.DIMENSIONS_TYPE)
 
         if not set(dimensions) == self.proper_keys:
-            raise DimensionsError("DIMENSIONS_KEYS")
+            raise DimensionsError(DimensionsError.DIMENSIONS_KEYS)
 
         self.data = {}
         for key in dimensions:
@@ -55,13 +55,13 @@ class Dimensions(UserDict):
         value must be positive number.
         """
         if key not in self.proper_keys:
-            raise DimensionsError("DIMENSIONS_KEYS")
+            raise DimensionsError(DimensionsError.DIMENSIONS_KEYS)
 
         try:
             if not isinstance(item, int) or item <= 0:
                 raise DimensionsError
         except Exception:
-            raise DimensionsError("DIMENSION_VALUE")
+            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
 
     def __setitem__(self, key, item):
         """
@@ -72,8 +72,12 @@ class Dimensions(UserDict):
 
         Proper dimensions format enforced.
         """
-        if self.instance._strip_pack and self.proper_keys == {"W", "L"} and self.data != {}:
-            raise ContainersError("STRIP_PACK_ONLY")
+        if (
+            self.instance._strip_pack
+            and self.proper_keys == {"W", "L"}
+            and self.data != {}
+        ):
+            raise ContainersError(ContainersError.STRIP_PACK_ONLY)
 
         self.check_data(key, item)
         self.data[key] = item
@@ -81,7 +85,7 @@ class Dimensions(UserDict):
             self.reset_instance_attrs()
 
     def __delitem__(self, key):
-        raise DimensionsError("CANT_DELETE")
+        raise DimensionsError(DimensionsError.CANT_DELETE)
 
 
 class AbstractStructure(UserDict):
@@ -99,10 +103,10 @@ class AbstractStructure(UserDict):
     def __init__(self, structure=None, instance=None):
         self.instance = instance
         if structure is None or structure == {}:
-            raise self.ERROR_CLASS("MISSING")
+            raise self.ERROR_CLASS(self.ERROR_CLASS.MISSING)
 
         if not isinstance(structure, dict):
-            raise self.ERROR_CLASS("TYPE")
+            raise self.ERROR_CLASS(self.ERROR_CLASS.TYPE)
 
         self.data = {}
 
@@ -121,7 +125,7 @@ class AbstractStructure(UserDict):
         Proper structure_id format enforced.
         """
         if self.instance._strip_pack and self.__class__.__name__ == "Containers":
-            raise ContainersError("STRIP_PACK_ONLY")
+            raise ContainersError(ContainersError.STRIP_PACK_ONLY)
 
         self.data[structure_id] = self.get_structure_dimensions(structure_id, new_dims)
         if self.instance is not None:
@@ -129,7 +133,7 @@ class AbstractStructure(UserDict):
 
     def __delitem__(self, key):
         if len(self.data) == 1:
-            raise self.ERROR_CLASS("CANT_DELETE_STRUCTURE")
+            raise self.ERROR_CLASS(self.ERROR_CLASS.CANT_DELETE_STRUCTURE)
         del self.data[key]
         self.reset_instance_attrs()
 
@@ -140,7 +144,7 @@ class AbstractStructure(UserDict):
         reference_structure = "container" if class_name == "Containers" else "item"
 
         if not isinstance(structure_id, str):
-            raise self.ERROR_CLASS("ID_TYPE")
+            raise self.ERROR_CLASS(self.ERROR_CLASS.ID_TYPE)
 
         return Dimensions(dims, reference_structure, self.instance)
 
@@ -200,6 +204,68 @@ class Containers(AbstractStructure):
     def reset_instance_attrs(self):
         super().reset_instance_attrs()
         self.instance._containers_num = len(self.data)
+
+    def _get_height(self, cont_id="strip-pack-container"):
+        """
+        **Calculates and returns the container's height.**
+
+        In case of bin-packing:
+            it returns the containers height.
+
+        In case of strip packing:
+            if a solution has been found return
+            ``instance._container_min_height`` OR
+            height of items stack in solution
+
+            if a solution has not been found, return
+            (container Width)* ``instance.MAX_W_L_RATIO``
+
+        Used in:
+            ``instance.create_figure``
+
+            ``instance.log_solution``
+        """
+        if getattr(self.instance, "_strip_pack", False):
+            if not getattr(self.instance, "solution", {}):
+                return self.data[cont_id]["W"] * self.instance.MAX_W_L_RATIO
+
+            else:
+                solution = self.instance.solution[cont_id]
+                # height of items stack in solution
+                solution_height = max(
+                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                    or [0]
+                )
+
+                # preventing container height to drop below point
+                if self.instance._container_min_height is not None:
+                    return max(solution_height, self.instance._container_min_height)
+
+                return solution_height
+        else:
+            return self.data[cont_id]["L"]
+
+    def _set_height(self):
+        cont_id = self.instance.STRIP_PACK_CONT_ID
+
+        if not getattr(self.instance, "solution", {}):
+            height = self.data[cont_id]["W"] * self.MAX_W_L_RATIO
+
+        else:
+            solution = self.instance.solution[cont_id]
+            # height of items stack in solution
+            solution_height = max(
+                [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                or [0]
+            )
+
+            # preventing container height to drop below point
+            if self.instance._container_min_height is not None:
+                height = max(solution_height, self.instance._container_min_height)
+            else:
+                height = solution_height
+
+        self.instance._container_height = height
 
 
 class Items(AbstractStructure):

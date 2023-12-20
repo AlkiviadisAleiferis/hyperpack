@@ -98,7 +98,7 @@ Local search (local_search method)
 An implementation of the 2-opt hill-climbing local search procedure, changing each time the
 input :ref:`items<items>` sequence passed to the construction heuristic.
 
-  - Starts from the ``self.items`` sequence, and doing continuous 2-opt exchanges feeds the new sequence to the PointGen's solve method.
+  - Starts from the ``items`` sequence, and doing continuous 2-opt exchanges feeds the new sequence to the PointGen's solve method.
   - A new optimum signals that a new **node** is found. The operation starts again from that node, until another node is found.
   - If no new node is found the local search terminates, and sets the best found values to the current values of the :ref:`solution<solution structure>`.
 

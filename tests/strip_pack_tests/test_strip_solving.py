@@ -34,11 +34,11 @@ def test_solving_container_height():
     cont_height = 20
     prob.container_height = cont_height
     prob.solve()
-    assert prob._get_container_height(STRIP_PACK_CONT_ID) <= cont_height
+    assert prob._containers._get_height(STRIP_PACK_CONT_ID) <= cont_height
 
     # no item in solution now
     cont_height = 1
     prob.container_height = cont_height
     prob.solve()
     assert prob.solution == {STRIP_PACK_CONT_ID: {}}
-    assert prob._get_container_height(STRIP_PACK_CONT_ID) == 0
+    assert prob._containers._get_height(STRIP_PACK_CONT_ID) == 0

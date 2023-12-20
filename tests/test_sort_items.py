@@ -26,7 +26,7 @@ def test_sorting(sorting_by):
     prob = HyperPack(containers=containers, items=items)
 
     by, reverse = sorting_by
-    init_items = prob._deepcopy_items(items)
+    init_items = prob._items.deepcopy(items)
 
     if by == "NotImplemented":
         with pytest.raises(NotImplementedError):

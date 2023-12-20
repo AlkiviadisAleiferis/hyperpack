@@ -11,8 +11,9 @@ class AbstractLocalSearch:
 
     # "MAX" or "MIN" -> 'hill-climbing' or 'greedy-descent'
     OPTIMIZATION = "MAX"
+    # setting for stopping the neighborhood search
+    # after this number of neighbors checked
     MAX_NEIGHBORS_THROTTLE = 2500
-    # TODO: implement
     OPT_NUM = 2
     logger = hyperLogger
 

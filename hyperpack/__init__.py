@@ -27,5 +27,5 @@ __all__ = [
     "Items",
 ]
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __author__ = "Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"

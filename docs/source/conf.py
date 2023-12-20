@@ -4,9 +4,10 @@ from pathlib import Path
 
 sys.path.append(str(Path(os.getcwd()).parent.parent))
 import hyperpack
-from hyperpack import heuristics
+from hyperpack import heuristics, mixins
 
 sys.modules["heuristics"] = heuristics
+sys.modules["mixins"] = mixins
 
 project = "hyperpack"
 copyright = "2023, Alkiviadis Aleiferis"

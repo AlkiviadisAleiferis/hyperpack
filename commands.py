@@ -11,10 +11,15 @@ arguments:
         Available choices:
             C1, C2, ..., C7
 
+    --check-version:
+        check if provided version checks out
+        provide X.X.X semantic versioning
+
     -p , --problem: the specific items set for profiling. Defaults to 'a'.
         Available choices:
             a, b, c
 """
+
 import cProfile
 import os
 import re

@@ -29,9 +29,11 @@ def test_fitting(container, items, points_seq):
 
 
 def test_solve_doesnt_change_items_attribute(test_data):
-    items = HyperPack._deepcopy_items(None, items_a)
+    from hyperpack.structures import Items
+
+    items = Items(items_a).deepcopy()
     prob = HyperPack(**test_data)
-    items = prob._deepcopy_items()
+    items = prob._items.deepcopy()
     prob.solve()
     assert prob.items == items
     assert id(prob.items) != id(items)

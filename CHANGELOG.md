@@ -11,7 +11,10 @@ with advance notice in the Deprecations section of releases.
 
 ### Changes
 
-- Added ``generate_problem_data`` function for quickstarting purposes.
+- Added ``generate_problem_data`` function for quickstarting purposes in hyperpack.utils.
+- Implemented refactoring with mixins/abstractions for better SOLID compliance and maintainability.
+- Many inner workings refactors for better readability and functionality.
+- Removed info logs at start/end of hypersearch.
 
 ### Changes (dev)
 

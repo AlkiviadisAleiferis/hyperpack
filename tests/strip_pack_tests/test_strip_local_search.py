@@ -63,10 +63,10 @@ def test_container_min_height_None():
     assert prob.container_height < (strip_pack_width * prob.MAX_W_L_RATIO)
     assert prob.container_height == 35
     assert [600, 44, 41, 39, 38, 37, 36, 35] == prob._heights_history
-    # Check _get_container_height
+    # Check _get_height
     solution = prob.solution[STRIP_PACK_CONT_ID]
     height = max([solution[item_id][1] + solution[item_id][3] for item_id in solution])
-    assert prob._get_container_height() == height
+    assert prob._containers._get_height() == height
     # Check that all items in solution are ensured always
     assert len(C3.items_a) == len(prob.solution[STRIP_PACK_CONT_ID])
 
@@ -81,8 +81,8 @@ def test_container_min_height_None():
     assert prob.container_height == 28
     assert solution == prob.solution
     assert [28] == prob._heights_history
-    # Check _get_container_height
-    assert prob._get_container_height() == 28
+    # Check _get_height
+    assert prob._containers._get_height() == 28
 
 
 def test_container_min_height_not_None():
@@ -95,11 +95,11 @@ def test_container_min_height_not_None():
     prob.local_search(debug=True)
     assert prob.container_height == 32
     # value set at local_search last node
-    assert prob._get_container_height() == 32
+    assert prob._containers._get_height() == 32
     assert len(C3.items_a) > len(prob.solution[STRIP_PACK_CONT_ID])
 
     # container_min_height == 55 -> solution height is < 55
-    # but _get_container_height returns 55 and container_height == 5
+    # but _get_height returns 55 and container_height == 5
     prob._container_height = 111
     prob._container_min_height = 55
     prob.local_search(debug=True)
@@ -107,7 +107,7 @@ def test_container_min_height_not_None():
     # shouldn't change
     assert prob._container_min_height == 55
     # value set at local_search last node
-    assert prob._get_container_height() == 55
+    assert prob._containers._get_height() == 55
     assert len(C3.items_a) == len(prob.solution[STRIP_PACK_CONT_ID])
 
 
@@ -158,7 +158,9 @@ def test_log_solution():
     solution_log += SOLUTION_STRING_CONTAINER.format(STRIP_PACK_CONT_ID, 60, 35, 85.7143)
     solution = prob.solution[STRIP_PACK_CONT_ID]
     # height of items stack in solution
-    max_height = max([solution[item_id][1] + solution[item_id][3] for item_id in solution])
+    max_height = max(
+        [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+    )
     solution_log += f"\t[max height] : {max_height}"
     solution_log += SOLUTION_STRING_REMAINING_ITEMS.format([])
     solution_log = solution_log.replace("\n", "").replace("\t", "")
