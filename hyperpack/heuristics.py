@@ -34,16 +34,24 @@ class PointGenPack(
 ):
     """
     Base class for initiating and validating the
-    attributes of the problem to be solved.
+    attributes of the problem to be solved:
+        - Items
+        - Containers
+        - Settings
+
+    The mixins used are each of them responsible
+    for the corresponding functionalities.
     """
 
-    # defaults
+    # settings defaults
     MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 60
     WORKERS_NUM_DEFAULT_VALUE = 1
     ROTATION_DEFAULT_VALUE = True
+    # strip pack constants
     MAX_W_L_RATIO = 10
     STRIP_PACK_INIT_HEIGHT = 2**100
     STRIP_PACK_CONT_ID = "strip-pack-container"
+    # solving constants
     DEFAULT_POTENTIAL_POINTS_STRATEGY = (
         "A",
         "B",
@@ -70,13 +78,11 @@ class PointGenPack(
         "F": deque(),
     }
     FIGURE_DEFAULT_FILE_NAME = "PlotlyGraph"
-
     # settings constraints
     PLOTLY_MIN_VER = ("5", "14", "0")
     PLOTLY_MAX_VER = ("6", "0", "0")
     KALEIDO_MIN_VER = ("0", "2", "1")
     KALEIDO_MAX_VER = ("0", "3", "0")
-
     FIGURE_FILE_NAME_REGEX = re.compile(r"[a-zA-Z0-9_-]{1,45}$")
     ACCEPTED_IMAGE_EXPORT_FORMATS = ("pdf", "png", "jpeg", "webp", "svg")
 
@@ -349,13 +355,6 @@ class PointGenPack(
             if "show" in figure_settings and not isinstance(show, bool):
                 raise SettingsError(SettingsError.FIGURE_SHOW_VALUE)
 
-    # % ------------------ solving ---------------------
-
-    def solve(self, sequence=None, debug=False):
-        self.solution, self.obj_val_per_container = super().solve(
-            sequence=sequence, debug=debug
-        )
-
     def log_solution(self) -> str:
         """
         Logs the solution.
@@ -525,11 +524,8 @@ class LocalSearch(AbstractLocalSearch):
 class HyperPack(PointGenPack, LocalSearch):
     """
     This class extends ``PointGenPack`` and ``LocalSearch``,
-    utilizing their solving functionalities by implementing:
-
-        **A.** a hill-climbing, 2-opt exchange local search
-
-        **B.** a hypersearch hyper-heuristic.
+    utilizing their solving functionalities by implementing
+    a hypersearch hyper-heuristic.
     """
 
     # Potential points strategies constant suffix

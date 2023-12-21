@@ -1,3 +1,30 @@
+"""
+This module contains the COntainers, Items structures
+used by PointGenPack and HyperPack
+to solve the corresponding problems.
+
+Each Containers, Items instance is a dictionary.
+
+Each Containers key is a container, and it's value is a Dimensions
+dictionary. Same stands for Items structure set.
+
+Each Dimensions instance is a dictionary with two keys only.
+
+e.g.
+containers = {
+    "container-id-0": Dimensions,
+    "container-id-1": Dimensions,
+    "container-id-2": Dimensions,
+}
+items = {
+    "item-id-0": Dimensions,
+    "item-id-1": Dimensions,
+    "item-id-2": Dimensions,
+}
+
+The above structure is inavoidable.
+"""
+
 from collections import UserDict
 
 from .exceptions import ContainersError, DimensionsError, ItemsError
@@ -18,15 +45,13 @@ class Dimensions(UserDict):
         #   "l or W": int
         # }
 
-        # it is propagated from Structure
+        # it is propagated from Structure. Problem instance
         self.instance = instance
-        if reference_structure not in {"item", "container"}:
+
+        if reference_structure.__class__ not in (Containers, Items):
             raise DimensionsError(DimensionsError.DIMENSIONS_REFERENCE_OBJECT)
 
-        if reference_structure == "item":
-            self.proper_keys = {"w", "l"}
-        else:
-            self.proper_keys = {"W", "L"}
+        self.proper_keys = set(reference_structure.PROPER_DIMENSIONS_KEYS)
 
         if dimensions is None or dimensions == {}:
             raise DimensionsError(DimensionsError.DIMENSIONS_MISSING)
@@ -34,12 +59,12 @@ class Dimensions(UserDict):
         if not isinstance(dimensions, dict):
             raise DimensionsError(DimensionsError.DIMENSIONS_TYPE)
 
-        if not set(dimensions) == self.proper_keys:
+        if set(dimensions) != self.proper_keys:
             raise DimensionsError(DimensionsError.DIMENSIONS_KEYS)
 
         self.data = {}
         for key in dimensions:
-            self.check_data(key, dimensions[key])
+            self.validate_data(key, dimensions[key])
             self.data[key] = dimensions[key]
 
         if self.instance is not None:
@@ -49,7 +74,7 @@ class Dimensions(UserDict):
         self.instance.obj_val_per_container = {}
         self.instance.solution = {}
 
-    def check_data(self, key, item):
+    def validate_data(self, key, item):
         """
         key must be "W" or "L" / "w" or "l".
         value must be positive number.
@@ -79,8 +104,10 @@ class Dimensions(UserDict):
         ):
             raise ContainersError(ContainersError.STRIP_PACK_ONLY)
 
-        self.check_data(key, item)
+        self.validate_data(key, item)
+
         self.data[key] = item
+
         if self.instance is not None:
             self.reset_instance_attrs()
 
@@ -88,7 +115,7 @@ class Dimensions(UserDict):
         raise DimensionsError(DimensionsError.CANT_DELETE)
 
 
-class AbstractStructure(UserDict):
+class AbstractStructureSet(UserDict):
     """
     Abstract class encapsulating the structure attribute (nested dicitonary)
     of the HyperPack class.
@@ -100,8 +127,11 @@ class AbstractStructure(UserDict):
         2. hyperpack 's instances solution attribute reset's
     """
 
+    PROPER_DIMENSIONS_KEYS = None
+
     def __init__(self, structure=None, instance=None):
         self.instance = instance
+
         if structure is None or structure == {}:
             raise self.ERROR_CLASS(self.ERROR_CLASS.MISSING)
 
@@ -128,6 +158,7 @@ class AbstractStructure(UserDict):
             raise ContainersError(ContainersError.STRIP_PACK_ONLY)
 
         self.data[structure_id] = self.get_structure_dimensions(structure_id, new_dims)
+
         if self.instance is not None:
             self.reset_instance_attrs()
 
@@ -140,36 +171,14 @@ class AbstractStructure(UserDict):
     def get_structure_dimensions(self, structure_id, dims):
         # The structure's dimension is an instance
         # of the Dimensions class
-        class_name = self.__class__.__name__
-        reference_structure = "container" if class_name == "Containers" else "item"
-
         if not isinstance(structure_id, str):
             raise self.ERROR_CLASS(self.ERROR_CLASS.ID_TYPE)
 
-        return Dimensions(dims, reference_structure, self.instance)
+        return Dimensions(dims, self, self.instance)
 
     def reset_instance_attrs(self):
         self.instance.obj_val_per_container = {}
         self.instance.solution = {}
-
-    def __str__(self):
-        strings_list = []
-        class_name = self.__class__.__name__
-        width_key = "W" if class_name == "Containers" else "w"
-        length_key = "L" if class_name == "Containers" else "l"
-
-        strings_list.append(class_name)
-        for structure_id in self.data:
-            width = self.data[structure_id][width_key]
-            length = self.data[structure_id][length_key]
-
-            if self.instance._strip_pack and class_name == "Containers":
-                strings_list.append(f"  - id: {structure_id}\n    width: {width}\n")
-            else:
-                strings_list.append(
-                    f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
-                )
-        return "\n".join(strings_list)
 
     def deepcopy(self, ids_sequence=None):
         if ids_sequence is None:
@@ -190,12 +199,13 @@ class AbstractStructure(UserDict):
             }
 
 
-class Containers(AbstractStructure):
+class Containers(AbstractStructureSet):
     """
     Class encapsulating the containers attribute (nested dicitonary)
-    of the HyperPack class, by proper subclassing of AbstractStructure.
+    of the HyperPack class, by proper subclassing of AbstractStructureSet.
     """
 
+    PROPER_DIMENSIONS_KEYS = ("W", "L")
     ERROR_CLASS = ContainersError
 
     def __init__(self, containers=None, instance=None):
@@ -267,14 +277,51 @@ class Containers(AbstractStructure):
 
         self.instance._container_height = height
 
+    def __str__(self):
+        strings_list = []
+        class_name = "Containers"
+        width_key = self.PROPER_DIMENSIONS_KEYS[0]
+        length_key = self.PROPER_DIMENSIONS_KEYS[1]
 
-class Items(AbstractStructure):
+        strings_list.append(class_name)
+        for structure_id in self.data:
+            width = self.data[structure_id][width_key]
+            length = self.data[structure_id][length_key]
+
+            if self.instance._strip_pack:
+                strings_list.append(f"  - id: {structure_id}\n    width: {width}\n")
+            else:
+                strings_list.append(
+                    f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
+                )
+
+        return "\n".join(strings_list)
+
+
+class Items(AbstractStructureSet):
     """
     Class encapsulating the items attribute (nested dicitonary)
-    of the HyperPack class, by proper subclassing of AbstractStructure.
+    of the HyperPack class, by proper subclassing of AbstractStructureSet.
     """
 
+    PROPER_DIMENSIONS_KEYS = ("w", "l")
     ERROR_CLASS = ItemsError
 
     def __init__(self, items=None, instance=None):
         super().__init__(structure=items, instance=instance)
+
+    def __str__(self):
+        strings_list = []
+        class_name = "Items"
+        width_key = self.PROPER_DIMENSIONS_KEYS[0]
+        length_key = self.PROPER_DIMENSIONS_KEYS[1]
+
+        strings_list.append(class_name)
+        for structure_id in self.data:
+            width = self.data[structure_id][width_key]
+            length = self.data[structure_id][length_key]
+            strings_list.append(
+                f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
+            )
+
+        return "\n".join(strings_list)

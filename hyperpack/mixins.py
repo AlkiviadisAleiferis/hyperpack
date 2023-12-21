@@ -664,7 +664,7 @@ class PointGenSolverMixin:
             B. returns (remaining non-fitted items, containers utilization) tuple.
         """
         current_solution = {}
-        strip_pack = self._strip_pack
+        strip_pack = getattr(self, "_strip_pack", False)
 
         # 'items' are the available for placement
         # after an item get's picked, it is erased
@@ -842,7 +842,8 @@ class PointGenSolverMixin:
             )
             obj_val_per_container[cont_id] = util
             solution[cont_id] = self._get_container_solution(current_solution)
-        return solution, obj_val_per_container
+
+        self.solution, self.obj_val_per_container = (solution, obj_val_per_container)
 
 
 class DeepcopyMixin:

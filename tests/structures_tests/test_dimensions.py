@@ -2,6 +2,7 @@ import pytest
 
 from hyperpack import (
     Containers,
+    Items,
     ContainersError,
     Dimensions,
     DimensionsError,
@@ -9,11 +10,13 @@ from hyperpack import (
 )
 
 
-def test_Dimensions_reference_structure_ok():
-    d = Dimensions({"w": 1, "l": 1}, reference_structure="item")
+def test_Dimensions_reference_structure_ok(test_data):
+    items = Items(test_data["items"])
+    d = Dimensions({"w": 1, "l": 1}, reference_structure=items)
     assert d.proper_keys == {"w", "l"}
 
-    d = Dimensions({"W": 1, "L": 1}, reference_structure="container")
+    containers = Containers(test_data["containers"])
+    d = Dimensions({"W": 1, "L": 1}, reference_structure=containers)
     assert d.proper_keys == {"W", "L"}
 
 
@@ -25,16 +28,18 @@ def test_Dimensions_wrong_reference_structure_error(caplog):
     assert error_msg in caplog.text
 
 
-def test_Dimensions_reference_structure_container_error(caplog):
+def test_Dimensions_reference_structure_container_error(test_data, caplog):
     with pytest.raises(DimensionsError) as exc_info:
-        d = Dimensions({"w": 1, "l": 1}, reference_structure="container")
+        containers = Containers(test_data["containers"])
+        d = Dimensions({"w": 1, "l": 1}, reference_structure=containers)
     assert str(exc_info.value) == DimensionsError.DIMENSIONS_KEYS
     assert DimensionsError.DIMENSIONS_KEYS in caplog.text
 
 
-def test_Dimensions_reference_structure_item_error(caplog):
+def test_Dimensions_reference_structure_item_error(test_data, caplog):
     with pytest.raises(DimensionsError) as exc_info:
-        d = Dimensions({"W": 1, "L": 1}, reference_structure="item")
+        items = Items(test_data["items"])
+        d = Dimensions({"W": 1, "L": 1}, reference_structure=items)
     assert str(exc_info.value) == DimensionsError.DIMENSIONS_KEYS
     assert DimensionsError.DIMENSIONS_KEYS in caplog.text
 

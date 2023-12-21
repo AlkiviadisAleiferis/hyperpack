@@ -15,6 +15,7 @@ with advance notice in the Deprecations section of releases.
 - Implemented refactoring with mixins/abstractions for better SOLID compliance and maintainability.
 - Many inner workings refactors for better readability and functionality.
 - Removed info logs at start/end of hypersearch.
+- ``AbstractStructure`` renamed to ``AbstractStructureSet``. Refactor is backward compatible since it is not exposed to client funcitonality.
 
 ### Changes (dev)
 
