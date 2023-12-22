@@ -7,10 +7,13 @@ with advance notice in the Deprecations section of releases.
 
 ---------------------------
 
-# [1.1.1] - CHECK DATE BEFORE PUBLISHING
+# [1.2.0] - CHECK DATE BEFORE PUBLISHING
 
 ### Changes
+Inner structure changes have been implemented for maximum scalability and maintainability.
+Thus for framework purposes the library gets a new MINOR semantic version.
 
+Changes implemented:
 - Added ``generate_problem_data`` function for quickstarting purposes in hyperpack.utils.
 - Implemented refactoring with mixins/abstractions for better SOLID compliance and maintainability.
 - Many inner workings refactors for better readability and functionality.

@@ -33,11 +33,13 @@ class PointGenPack(
     mixins.PropertiesMixin,
 ):
     """
-    Base class for initiating and validating the
-    attributes of the problem to be solved:
-        - Items
-        - Containers
-        - Settings
+    Base class for initiating and
+    validating/managing the
+    attributes/parameters of the problem:
+        - items
+        - containers
+        - settings
+        - solution
 
     The mixins used are each of them responsible
     for the corresponding functionalities.
@@ -101,7 +103,8 @@ class PointGenPack(
         self._workers_num = None
         self._rotation = None
         self._settings = settings or {}
-        self._check_plotly_kaleido()
+        self._check_plotly_kaleido_versions()
+
         self.validate_settings()
 
         # it's the strategy used for the instance. It can be
@@ -124,7 +127,7 @@ class PointGenPack(
 
                 ``compare_solution``: Makes comparison check if all items are in solution.
 
-                ``_get_height``: Branches method to return solution height \
+                ``_containers._get_height``: Branches method to return solution height \
                 or a minimum.
 
             ``_container_height``: is the actual container's height used
@@ -134,7 +137,7 @@ class PointGenPack(
             ``_container_min_height``: is the minimum height that the container \
             can get (not the solution height!).
 
-            ``containers``: with container with preset height for strip packing mode.
+            ``containers``: single container with preset height for strip packing mode.
         """
         self._container_min_height = None
 
@@ -157,7 +160,7 @@ class PointGenPack(
         }
         self._containers = Containers(containers, self)
 
-    def _check_plotly_kaleido(self) -> None:
+    def _check_plotly_kaleido_versions(self) -> None:
         self._plotly_installed = False
         self._plotly_ver_ok = False
         self._kaleido_installed = False
@@ -205,7 +208,7 @@ class PointGenPack(
         """
 
         # % ----------------------------------------------------------------------------
-        # SETTINGS VALIDATION
+        # SETTINGS FORMAT VALIDATION
         settings = self._settings
         if not isinstance(settings, dict):
             raise SettingsError(SettingsError.TYPE)
@@ -396,136 +399,12 @@ class PointGenPack(
         return output_log
 
 
-class LocalSearch(AbstractLocalSearch):
-    def evaluate(self, sequence):
-        self.solve(sequence=sequence, debug=False)
-
-    def get_solution(self):
-        return (
-            self._deepcopy_solution(),
-            self._copy_objective_val_per_container(),
-        )
-
-    def calculate_obj_value(self):
-        """
-        Calculates the objective value
-        using '`obj_val_per_container`' attribute.
-
-        Returns a float (total utilization).
-
-        In case more than 1 bin is used, last bin's
-        utilization is reduced to push first bin's
-        maximum utilization.
-        """
-        containers_obj_vals = tuple(self.obj_val_per_container.values())
-        if self._containers_num == 1:
-            return sum([u for u in containers_obj_vals])
-        else:
-            return (
-                sum([u for u in containers_obj_vals[:-1]]) + 0.7 * containers_obj_vals[-1]
-            )
-
-    def get_init_solution(self):
-        self.solve(debug=False)
-        # deepcopying solution
-        best_solution = self._deepcopy_solution()
-        best_obj_val_per_container = self._copy_objective_val_per_container()
-        return best_solution, best_obj_val_per_container
-
-    def extra_node_operations(self, **kwargs):
-        if self._strip_pack:
-            # new height is used for the container
-            # for neighbors of new node
-            self._containers._set_height()
-            self._heights_history.append(self._container_height)
-
-    def node_check(self, new_obj_value, best_obj_value):
-        """
-        Used in local_search.
-        Compares new solution value to best for accepting new node. It's the
-        mechanism for propagating towards new accepted better solutions/nodes.
-
-        In bin-packing mode, a simple comparison using solution_operator is made.
-
-        In strip-packing mode, extra conditions will be tested:
-
-            - If ``self._container_min_height`` is ``None``:
-                The total of items  must be in solution. \
-                If not, solution is rejected.
-
-            - If ``self._container_min_height`` is not ``None``:
-                Number of items in solution doesn't affect \
-                solution choice.
-        """
-        better_solution = new_obj_value > best_obj_value
-
-        if not self._strip_pack:
-            return better_solution
-
-        if self._container_min_height is None:
-            extra_cond = len(self.solution[self.STRIP_PACK_CONT_ID]) == len(self._items)
-        else:
-            extra_cond = True
-
-        return extra_cond and better_solution
-
-    def local_search(
-        self, *, throttle: bool = True, _hypersearch: bool = False, debug: bool = False
-    ) -> None:
-        """
-        Method for deploying a hill-climbing local search operation, using the
-        default potential points strategy. Solves against the ``self.items`` and
-        the ``self.containers`` attributes.
-
-        **OPERATION**
-            Updates ``self.solution`` with the best solution found.
-
-            Updates ``self.obj_val_per_container`` with the best values found.
-
-        **PARAMETERS**
-            ``throttle`` affects the total neighbors parsing before accepting that
-            no better node can be found. Aims at containing the total execution time
-            in big instances of the problem. Corresponds to ~ 72 items instance
-            (max 2500 neighbors).
-
-            ``_hypersearch``: Either standalone (False), or part of a
-            superset search (used by hypersearch).
-
-            ``debug``: for developing debugging.
-
-        **RETURNS**
-            ``None``
-        """
-
-        if not _hypersearch:
-            start_time = time.time()
-        else:
-            start_time = self.start_time
-            hyperLogger.debug(
-                "\t\tCURRENT POTENTIAL POINTS STRATEGY:"
-                f" {self._potential_points_strategy}"
-            )
-
-        if self._strip_pack:
-            self._heights_history = [self._container_height]
-
-        # after local search has ended, restore optimum values
-        # retain_solution = (solution, obj_val_per_container)
-        retained_solution = super().local_search(
-            list(self._items),
-            throttle,
-            start_time,
-            self._max_time_in_seconds,
-            debug=debug,
-        )
-        self.solution, self.obj_val_per_container = retained_solution
-
-
-class HyperPack(PointGenPack, LocalSearch):
+class HyperPack(PointGenPack, mixins.LocalSearchMixin):
     """
-    This class extends ``PointGenPack`` and ``LocalSearch``,
-    utilizing their solving functionalities by implementing
-    a hypersearch hyper-heuristic.
+    This class extends ``PointGenPack``,
+    utilizing its solving functionalities
+    by implementing a hypersearch hyper-heuristic
+    using the ``LocalSearchMixin`` mixin.
     """
 
     # Potential points strategies constant suffix
