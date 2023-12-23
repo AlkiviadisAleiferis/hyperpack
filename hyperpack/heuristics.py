@@ -1,11 +1,10 @@
 import math
-import platform
 import re
 import sys
 import time
 from collections import deque
 from itertools import permutations
-from multiprocessing import Array, cpu_count, current_process
+from multiprocessing import Array
 from pathlib import Path
 
 from . import constants
@@ -25,68 +24,19 @@ ITEMS_COLORS = constants.ITEMS_COLORS
 
 
 class PointGenPack(
-    mixins.ContainersUtilsMixin,
-    mixins.ItemsUtilsMixin,
     mixins.PointGenSolverMixin,
     mixins.DeepcopyMixin,
     mixins.FigureBuilderMixin,
     mixins.PropertiesMixin,
+    mixins.StripPackMixin,
+    mixins.SettingsMixin,
+    mixins.SolutionLoggingMixin,
+    mixins.StructuresUtilsMixin,
 ):
     """
-    Base class for initiating and
-    validating/managing the
-    attributes/parameters of the problem:
-        - items
-        - containers
-        - settings
-        - solution
-
-    The mixins used are each of them responsible
-    for the corresponding functionalities.
+    Base class for initiating the problem
+    and grouping the mixins for solving.
     """
-
-    # settings defaults
-    MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 60
-    WORKERS_NUM_DEFAULT_VALUE = 1
-    ROTATION_DEFAULT_VALUE = True
-    # strip pack constants
-    MAX_W_L_RATIO = 10
-    STRIP_PACK_INIT_HEIGHT = 2**100
-    STRIP_PACK_CONT_ID = "strip-pack-container"
-    # solving constants
-    DEFAULT_POTENTIAL_POINTS_STRATEGY = (
-        "A",
-        "B",
-        "C",
-        "D",
-        "A_",  # A' point
-        "B_",  # B' point
-        "B__",  # B" point
-        "A__",  # A" point
-        "E",
-        "F",
-    )
-    INIT_POTENTIAL_POINTS = {
-        "O": (0, 0),
-        "A": deque(),
-        "B": deque(),
-        "A_": deque(),
-        "B_": deque(),
-        "A__": deque(),
-        "B__": deque(),
-        "C": deque(),
-        "D": deque(),
-        "E": deque(),
-        "F": deque(),
-    }
-    FIGURE_DEFAULT_FILE_NAME = "PlotlyGraph"
-    # settings constraints
-    PLOTLY_MIN_VER = ("5", "14", "0")
-    PLOTLY_MAX_VER = ("6", "0", "0")
-    KALEIDO_MIN_VER = ("0", "2", "1")
-    KALEIDO_MAX_VER = ("0", "3", "0")
-    FIGURE_FILE_NAME_REGEX = re.compile(r"[a-zA-Z0-9_-]{1,45}$")
-    ACCEPTED_IMAGE_EXPORT_FORMATS = ("pdf", "png", "jpeg", "webp", "svg")
 
     def __init__(
         self, containers=None, items=None, settings=None, *, strip_pack_width=None
@@ -104,7 +54,6 @@ class PointGenPack(
         self._rotation = None
         self._settings = settings or {}
         self._check_plotly_kaleido_versions()
-
         self.validate_settings()
 
         # it's the strategy used for the instance. It can be
@@ -112,291 +61,6 @@ class PointGenPack(
         self._potential_points_strategy = self.DEFAULT_POTENTIAL_POINTS_STRATEGY
         self._containers_num = len(self._containers)
         self.solution = {}
-
-    def _check_strip_pack(self, strip_pack_width) -> None:
-        """
-        This method checks ``strip_pack_width`` value and set's initial values for:
-
-            ``_strip_pack``: is the attribute modifying the problem. Used for \
-            logic branching in execution. Modifies:
-
-                ``_construct``: Forces the method to accept ``container_height`` \
-                as container's height.
-
-                ``local_search``: by lowering the ``container_height`` in every new node.
-
-                ``compare_solution``: Makes comparison check if all items are in solution.
-
-                ``_containers._get_height``: Branches method to return solution height \
-                or a minimum.
-
-            ``_container_height``: is the actual container's height used
-            in ``_construct``. Is also updated in every new node solution \
-            in local_search, where a lower height is proven feasible.
-
-            ``_container_min_height``: is the minimum height that the container \
-            can get (not the solution height!).
-
-            ``containers``: single container with preset height for strip packing mode.
-        """
-        self._container_min_height = None
-
-        if strip_pack_width is None:
-            self._strip_pack = False
-            self._container_height = None
-            self._heights_history = []
-            return
-
-        if not isinstance(strip_pack_width, int) or strip_pack_width <= 0:
-            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
-
-        self._strip_pack = True
-        self._container_height = self.MAX_W_L_RATIO * strip_pack_width
-        containers = {
-            "strip-pack-container": {
-                "W": strip_pack_width,
-                "L": self.STRIP_PACK_INIT_HEIGHT,
-            }
-        }
-        self._containers = Containers(containers, self)
-
-    def _check_plotly_kaleido_versions(self) -> None:
-        self._plotly_installed = False
-        self._plotly_ver_ok = False
-        self._kaleido_installed = False
-        self._kaleido_ver_ok = False
-
-        try:
-            import plotly
-        except ImportError:
-            pass
-        else:
-            self._plotly_installed = True
-            plotly_ver = tuple([x for x in plotly.__version__.split(".")][:3])
-            if plotly_ver >= self.PLOTLY_MIN_VER and plotly_ver < self.PLOTLY_MAX_VER:
-                self._plotly_ver_ok = True
-
-        try:
-            import kaleido
-        except ImportError:
-            pass
-        else:
-            self._kaleido_installed = True
-            kaleido_ver = tuple([x for x in kaleido.__version__.split(".")][:3])
-            if kaleido_ver >= self.KALEIDO_MIN_VER and kaleido_ver < self.KALEIDO_MAX_VER:
-                self._kaleido_ver_ok = True
-
-    def validate_settings(self) -> None:
-        """
-        Method for validating and applying the settings either
-        provided through:
-        **A.** instantiation
-        **B.** explicit assignment to self.settings
-        **C.** calling ``self.validate_settings()``.
-
-        **OPERATION**
-            Validates ``settings`` instance attribute data structure and format.
-
-            Applies said settings to correlated private attributes.
-
-        **PARAMETERS**
-            ``None``
-
-
-        **RETURNS**
-            `None`
-        """
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS FORMAT VALIDATION
-        settings = self._settings
-        if not isinstance(settings, dict):
-            raise SettingsError(SettingsError.TYPE)
-
-        # % ----------------------------------------------------------------------------
-        # IF NO SETTINGS PROVIDED, SET DEFAULT VALUES FOR THESE ATTRIBUTES
-        if not settings:
-            # if no settings are provided, use DEFAULT values for these attributes
-            self._rotation = self.ROTATION_DEFAULT_VALUE
-            self._max_time_in_seconds = self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
-            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
-            return
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS MAX TIME IN SECONDS
-        max_time_in_seconds = self._settings.get(
-            "max_time_in_seconds", self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
-        )
-        if not isinstance(max_time_in_seconds, int):
-            raise SettingsError(SettingsError.MAX_TIME_IN_SECONDS_TYPE)
-
-        if max_time_in_seconds < 1:
-            raise SettingsError(SettingsError.MAX_TIME_IN_SECONDS_VALUE)
-        self._max_time_in_seconds = max_time_in_seconds
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS WORKERS NUM
-        workers_num = self._settings.get("workers_num")
-        if workers_num is not None:
-            try:
-                if not workers_num > 0:
-                    raise SettingsError(SettingsError.WORKERS_NUM_VALUE)
-            except Exception:
-                raise SettingsError(SettingsError.WORKERS_NUM_VALUE)
-            self._workers_num = workers_num
-        else:
-            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
-            workers_num = self.WORKERS_NUM_DEFAULT_VALUE
-        if workers_num > cpu_count():
-            hyperLogger.warning(SettingsError.WORKERS_NUM_CPU_COUNT_WARNING)
-
-        platform_os = platform.system()
-        if (
-            workers_num > 1
-            and platform_os == "Windows"
-            and current_process().name == "MainProcess"
-        ):
-            hyperLogger.warning(
-                "In Windows OS multiprocessing needs 'Entry point protection'"
-                "\nwhich means adding if '__name__' == '__main__' before"
-                " multiprocessing depending code execution"
-            )
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS ROTATION
-        rotation = settings.get("rotation")
-        if rotation is not None:
-            if not isinstance(rotation, bool):
-                raise SettingsError(SettingsError.ROTATION_TYPE)
-            self._rotation = rotation
-        else:
-            self._rotation = self.ROTATION_DEFAULT_VALUE
-
-        # % ----------------------------------------------------------------------------
-        # FIGURE SETTINGS VALIDATION
-        figure_settings = settings.get("figure", {})
-
-        if not isinstance(figure_settings, dict):
-            raise SettingsError(SettingsError.FIGURE_KEY_TYPE)
-
-        if figure_settings:
-            # plotly library must be installed, and at least 5.14.0 version
-            # to enable any figure instantiation/exportation
-            if not self._plotly_installed:
-                raise SettingsError(SettingsError.PLOTLY_NOT_INSTALLED)
-
-            if not self._plotly_ver_ok:
-                raise SettingsError(SettingsError.PLOTLY_VERSION)
-
-            if "export" in figure_settings:
-                export = figure_settings.get("export")
-
-                if not isinstance(export, dict):
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_VALUE_TYPE)
-
-                export_type = export.get("type")
-                if export_type is None:
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_TYPE_MISSING)
-
-                if export_type not in ("html", "image"):
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_TYPE_VALUE)
-
-                export_path = export.get("path")
-                if export_path is None:
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_PATH_MISSING)
-
-                if not isinstance(export_path, str):
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_PATH_VALUE)
-
-                export_path = Path(export_path)
-                if not export_path.exists():
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_PATH_NOT_EXISTS)
-
-                if not export_path.is_dir():
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_PATH_NOT_DIRECTORY)
-
-                file_format = export.get("format")
-                if file_format is None and export_type != "html":
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_FORMAT_MISSING)
-
-                if export_type != "html" and not isinstance(file_format, str):
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_FORMAT_TYPE)
-
-                accepted_formats = self.ACCEPTED_IMAGE_EXPORT_FORMATS
-                if export_type == "image" and file_format not in accepted_formats:
-                    raise SettingsError(SettingsError.FIGURE_EXPORT_FORMAT_VALUE)
-
-                file_name = export.get("file_name", None)
-                if file_name is None:
-                    self._settings["figure"]["export"][
-                        "file_name"
-                    ] = self.FIGURE_DEFAULT_FILE_NAME
-                else:
-                    if not isinstance(file_name, str):
-                        raise SettingsError(SettingsError.FIGURE_EXPORT_FILE_NAME_TYPE)
-
-                    if not self.FIGURE_FILE_NAME_REGEX.match(file_name):
-                        raise SettingsError(SettingsError.FIGURE_EXPORT_FILE_NAME_VALUE)
-
-                if export_type == "image":
-                    if not self._kaleido_installed:
-                        raise SettingsError(SettingsError.FIGURE_EXPORT_KALEIDO_MISSING)
-
-                    if not self._kaleido_ver_ok:
-                        raise SettingsError(SettingsError.FIGURE_EXPORT_KALEIDO_VERSION)
-
-                    export_width = export.get("width")
-                    if export_width is not None:
-                        if not isinstance(export_width, int) or export_width <= 0:
-                            raise SettingsError(SettingsError.FIGURE_EXPORT_WIDTH_VALUE)
-                    export_height = export.get("height")
-                    if export_height is not None:
-                        if not isinstance(export_height, int) or export_height <= 0:
-                            raise SettingsError(SettingsError.FIGURE_EXPORT_HEIGHT_VALUE)
-
-            show = figure_settings.get("show", False)
-            if "show" in figure_settings and not isinstance(show, bool):
-                raise SettingsError(SettingsError.FIGURE_SHOW_VALUE)
-
-    def log_solution(self) -> str:
-        """
-        Logs the solution.
-
-        If a solution isn't available a proper message is displayed.
-        """
-        if not getattr(self, "solution", False):
-            hyperLogger.warning("No solving operation has been concluded.")
-            return
-
-        log = ["\nSolution Log:"]
-        percent_items_stored = sum(
-            [len(i) for cont_id, i in self.solution.items()]
-        ) / len(self._items)
-        log.append(f"Percent total items stored : {percent_items_stored*100:.4f}%")
-
-        for cont_id in self._containers:
-            L = self._containers._get_height(cont_id)
-            W = self._containers[cont_id]["W"]
-            log.append(f"Container: {cont_id} {W}x{L}")
-            total_items_area = sum(
-                [i[2] * i[3] for item_id, i in self.solution[cont_id].items()]
-            )
-            log.append(f"\t[util%] : {total_items_area*100/(W*L):.4f}%")
-            if self._strip_pack:
-                solution = self.solution[cont_id]
-                # height of items stack in solution
-                max_height = max(
-                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
-                    or [0]
-                )
-                log.append(f"\t[max height] : {max_height}")
-
-        items_ids = {_id for cont_id, items in self.solution.items() for _id in items}
-        remaining_items = [_id for _id in self._items if _id not in items_ids]
-        log.append(f"\nRemaining items : {remaining_items}")
-        output_log = "\n".join(log)
-        hyperLogger.info(output_log)
-        return output_log
 
 
 class HyperPack(PointGenPack, mixins.LocalSearchMixin):

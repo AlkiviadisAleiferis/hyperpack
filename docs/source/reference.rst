@@ -5,7 +5,7 @@ API Reference
 .. _reference_hyper_pack:
 
 HyperPack
-----------
+---------
 
 .. autoclass:: heuristics.HyperPack
     :members:
@@ -15,7 +15,7 @@ HyperPack
 .. _reference_point_gen_pack:
 
 PointGenPack
--------------
+------------
 
 .. autoclass:: heuristics.PointGenPack
     :members:
@@ -24,26 +24,19 @@ PointGenPack
 
 .. _reference_containers_utils:
 
-ContainersUtilsMixin
+StructuresUtilsMixin
 --------------------
 
-.. autoclass:: mixins.ContainersUtilsMixin
+.. autoclass:: mixins.StructuresUtilsMixin
     :members:
     :private-members:
 
 
-.. _reference_items_utils:
-
-ItemsUtilsMixin
----------------
-
-.. autoclass:: mixins.ItemsUtilsMixin
-    :members:
-    :private-members:
+.. _reference_structure_utils:
 
 
 FigureBuilderMixin
--------------------
+------------------
 
 .. autoclass:: mixins.FigureBuilderMixin
     :members:
@@ -51,7 +44,7 @@ FigureBuilderMixin
 
 
 PointGenSolverMixin
---------------------
+-------------------
 
 .. autoclass:: mixins.PointGenSolverMixin
     :members:
@@ -62,5 +55,29 @@ DeepcopyMixin
 -------------
 
 .. autoclass:: mixins.DeepcopyMixin
+    :members:
+    :private-members:
+
+
+StripPackMixin
+--------------
+
+.. autoclass:: mixins.StripPackMixin
+    :members:
+    :private-members:
+
+
+SettingsMixin
+-------------
+
+.. autoclass:: mixins.SettingsMixin
+    :members:
+    :private-members:
+
+
+LocalSearchMixin
+----------------
+
+.. autoclass:: mixins.LocalSearchMixin
     :members:
     :private-members:
