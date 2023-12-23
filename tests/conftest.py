@@ -23,13 +23,13 @@ def HyperSearchProcess_mock(mocker):
 
 @pytest.fixture
 def cpu_count_mock(mocker):
-    mocker.patch("hyperpack.heuristics.cpu_count", return_value=2)
+    mocker.patch("hyperpack.mixins.cpu_count", return_value=2)
     return cpu_count_mock
 
 
 @pytest.fixture
 def platform_os_mock(mocker):
-    mocker.patch("hyperpack.heuristics.platform.system", return_value="Windows")
+    mocker.patch("hyperpack.mixins.platform.system", return_value="Windows")
     return cpu_count_mock
 
 
