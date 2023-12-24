@@ -192,8 +192,8 @@ class PointGenerationSolver(
 
 
 class PointGenPack(
-    PointGenerationSolver,
     mixins.SolutionFigureMixin,
+    PointGenerationSolver,
     mixins.SolutionLoggingMixin,
 ):
     """
