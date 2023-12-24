@@ -23,7 +23,7 @@ ITEMS_COLORS = constants.ITEMS_COLORS
 class BasePackingProblem(mixins.StructuresPropertiesMixin):
     """
     Base class for initializing/managing
-    the base packing problem attributes.
+    the base packing problem instance.
     """
 
     # strip pack constants
@@ -33,6 +33,7 @@ class BasePackingProblem(mixins.StructuresPropertiesMixin):
 
     def __init__(self, containers=None, items=None, *, strip_pack_width=None):
         self._check_strip_pack(strip_pack_width)
+
         if not self._strip_pack:
             self._containers = Containers(containers, self)
         elif containers is not None:
@@ -108,18 +109,15 @@ class PointGenerationSolver(
     mixins.PointGenerationMixin,
 ):
     """
-    Class that implements Point Generation solving.
+    Class that implements the
+    Point Generation problem solver.
 
-    Extends problem's attributes to provide solving settings.
+    Extends problem's attributes to provide
+    solving settings.
     """
 
     # settings defaults
     ROTATION_DEFAULT_VALUE = True
-    # settings constraints
-    PLOTLY_MIN_VER = ("5", "14", "0")
-    PLOTLY_MAX_VER = ("6", "0", "0")
-    KALEIDO_MIN_VER = ("0", "2", "1")
-    KALEIDO_MAX_VER = ("0", "3", "0")
 
     def __init__(
         self, containers=None, items=None, settings=None, *, strip_pack_width=None
@@ -129,6 +127,7 @@ class PointGenerationSolver(
         )
 
         self._rotation = None
+
         self._settings = settings or {}
         self.validate_settings()
 
@@ -172,8 +171,6 @@ class PointGenerationSolver(
         if not settings:
             # if no settings are provided, use DEFAULT values for these attributes
             self._rotation = self.ROTATION_DEFAULT_VALUE
-            self._max_time_in_seconds = self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
-            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
             return
 
         # % ----------------------------------------------------------------------------
@@ -189,6 +186,15 @@ class PointGenerationSolver(
 
     def validate_settings(self) -> None:
         self._validate_settings()
+
+    def solve(self, sequence=None, debug=False) -> None:
+        """
+        Solves the problem and updates the corresponding
+        solution attributes.
+        """
+        self.solution, self.obj_val_per_container = self._solve(
+            sequence=sequence, debug=debug
+        )
 
 
 class PointGenPack(
@@ -222,7 +228,9 @@ class HyperPack(
     # settings defaults
     MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 60
     WORKERS_NUM_DEFAULT_VALUE = 1
-    # setting for determining max neighbors parsing
+
+    # hypersearch/localsearch parameters
+    # max neighbors parsing
     # before accepting node as optimum
     MAX_NEIGHBORS_THROTTLE = 2500
     # Potential points strategies constant suffix
@@ -244,6 +252,15 @@ class HyperPack(
 
     def _validate_settings(self) -> None:
         super()._validate_settings()
+
+        # % ----------------------------------------------------------------------------
+        # IF NO SETTINGS PROVIDED, SET DEFAULT VALUES FOR THESE ATTRIBUTES
+        # % ----------------------------------------------------------------------------
+        if not self._settings:
+            # if no settings are provided, use DEFAULT values for these attributes
+            self._max_time_in_seconds = self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
+            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
+            return
 
         # % ----------------------------------------------------------------------------
         # SETTINGS MAX TIME IN SECONDS

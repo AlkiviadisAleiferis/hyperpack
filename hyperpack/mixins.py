@@ -1,5 +1,4 @@
 import math
-import platform
 import sys
 import time
 from .abstract import AbstractLocalSearch
@@ -98,10 +97,53 @@ class StructuresPropertiesMixin:
         raise DimensionsError(DimensionsError.CANT_DELETE)
 
 
+class SolverPropertiesMixin:
+    @property
+    def settings(self):
+        return self._settings
+
+    @settings.setter
+    def settings(self, value):
+        self._settings = value
+        self.validate_settings()
+
+    @settings.deleter
+    def settings(self):
+        raise SettingsError(SettingsError.CANT_DELETE_SETTINGS)
+
+    # % -----------------------------
+
+    @property
+    def potential_points_strategy(self):
+        return self._potential_points_strategy
+
+    @potential_points_strategy.setter
+    def potential_points_strategy(self, value):
+        if not isinstance(value, tuple):
+            raise PotentialPointsError(PotentialPointsError.TYPE)
+
+        checked_elements = set()
+        for el in value:
+            if not isinstance(el, str):
+                raise PotentialPointsError(PotentialPointsError.ELEMENT_TYPE)
+
+            if el not in self.DEFAULT_POTENTIAL_POINTS_STRATEGY:
+                raise PotentialPointsError(PotentialPointsError.ELEMENT_NOT_POINT)
+
+            if el in checked_elements:
+                raise PotentialPointsError(PotentialPointsError.DUPLICATE_POINTS)
+            checked_elements.add(el)
+
+        self._potential_points_strategy = value
+
+    @potential_points_strategy.deleter
+    def potential_points_strategy(self):
+        raise PotentialPointsError(PotentialPointsError.DELETE)
+
+
 class PointGenerationMixin:
     """
-    Mixin providing the point generation functionality to
-    properly namespaced child class.
+    Mixin providing the point generation functionality.
 
     Attributes required for solving operation:
         ``_containers`` attribute of type ``Containers``.
@@ -479,7 +521,39 @@ class PointGenerationMixin:
         else:
             horizontals[Yo + l] = [((Xo, Ay), (Bx, Ay))]
 
-    def _construct(self, cont_id, container, items, debug=False) -> tuple:
+    def _get_initial_container_length(self, container):
+        if self._strip_pack:
+            return self._container_height
+        else:
+            return container["L"]
+
+    def _get_initial_potential_points(self):
+        return {
+            "O": (0, 0),
+            "A": deque(),
+            "B": deque(),
+            "A_": deque(),
+            "B_": deque(),
+            "A__": deque(),
+            "B__": deque(),
+            "C": deque(),
+            "D": deque(),
+            "E": deque(),
+            "F": deque(),
+        }
+
+    def _get_initial_horizontal_segments(self, container_width):
+        return {0: [((0, 0), (container_width, 0))]}
+
+    def _get_initial_vertical_segments(self, container_width, container_length):
+        return {
+            0: [((0, 0), (0, container_length))],
+            container_width: [
+                ((container_width, 0), (container_width, container_length))
+            ],
+        }
+
+    def _construct_solution(self, cont_id, container, items, debug=False) -> tuple:
         """
         Point generation construction heuristic
         for solving single container problem instance.
@@ -499,13 +573,10 @@ class PointGenerationMixin:
         strip_pack = getattr(self, "_strip_pack", False)
 
         # 'items' are the available for placement
-        # after an item get's picked, it is erased
+        # after an item get's picked, it gets removed
         items_ids = [_id for _id in items]
 
-        if strip_pack:
-            L = self._container_height
-        else:
-            L = container["L"]
+        L = self._get_initial_container_length(container)
         W = container["W"]
 
         total_surface = W * L
@@ -517,37 +588,26 @@ class PointGenerationMixin:
 
         container_coords = [array("I", [0] * W) for y in range(L)]
 
-        # set starting lines
-        horizontals = {0: [((0, 0), (W, 0))]}
-        verticals = {0: [((0, 0), (0, L))], W: [((W, 0), (W, L))]}
+        horizontals = self._get_initial_horizontal_segments(W)
+        verticals = self._get_initial_vertical_segments(W, L)
 
-        potential_points = {
-            "O": (0, 0),
-            "A": deque(),
-            "B": deque(),
-            "A_": deque(),
-            "B_": deque(),
-            "A__": deque(),
-            "B__": deque(),
-            "C": deque(),
-            "D": deque(),
-            "E": deque(),
-            "F": deque(),
-        }
+        potential_points = self._get_initial_potential_points()
 
         # O(0, 0) init point
         current_point, point_class = potential_points["O"], "O"
 
-        # start of item placement process
+        # START of item placement process
         while True:
-            if current_point is None or not items_ids or obj_value >= max_obj_value:
+            if (current_point is None) or (not items_ids) or (obj_value >= max_obj_value):
                 break
 
             if debug:
                 logger.debug(f"\nCURRENT POINT: {current_point} class: {point_class}")
 
             Xo, Yo = current_point
+
             # CURRENT POINT'S ITEM SEARCH
+            # get first fitting in sequence
             for item_id in items_ids:
                 item = items[item_id]
                 w, l, rotated = item["w"], item["l"], False
@@ -591,21 +651,23 @@ class PointGenerationMixin:
                     l,
                     debug,
                 )
+
                 self._append_segments(horizontals, verticals, Xo, Yo, w, l)
+
                 break
 
             if debug:
                 self._current_potential_points = deepcopy(potential_points)
+
             current_point, point_class = self._get_current_point(potential_points)
-        # end of item placement process
+
+        # END of item placement process
 
         if strip_pack:
             height_of_solution = max(set(horizontals)) or 1
             obj_value = items_area / (W * height_of_solution)
 
         return items, obj_value, current_solution
-
-    # % ------------------ solving ---------------------
 
     def _get_container_solution(self, current_solution):
         """
@@ -623,7 +685,7 @@ class PointGenerationMixin:
             solution[_id] = [Xo, Yo, w, l]
         return solution
 
-    def solve(self, sequence=None, debug=False) -> None:
+    def _solve(self, sequence=None, debug=False) -> None:
         """
         Solves for all the containers, using the
         `point generation construction heuristic
@@ -644,7 +706,7 @@ class PointGenerationMixin:
             only for developing.
 
         **RETURNS**
-            ``None``
+            ``solution`` , ``obj_val_per_container``
 
         **NOTES**
             Solution is deterministic, and solely dependent on these factors:
@@ -669,13 +731,13 @@ class PointGenerationMixin:
             obj_val_per_container[cont_id] = 0
             if items == {}:
                 continue
-            items, util, current_solution = self._construct(
+            items, util, current_solution = self._construct_solution(
                 cont_id, container=self._containers[cont_id], items=items, debug=debug
             )
             obj_val_per_container[cont_id] = util
             solution[cont_id] = self._get_container_solution(current_solution)
 
-        self.solution, self.obj_val_per_container = (solution, obj_val_per_container)
+        return solution, obj_val_per_container
 
 
 class SolutionLoggingMixin:
@@ -724,59 +786,25 @@ class SolutionLoggingMixin:
         return output_log
 
 
-class SolverPropertiesMixin:
-    @property
-    def settings(self):
-        return self._settings
-
-    @settings.setter
-    def settings(self, value):
-        self._settings = value
-        self.validate_settings()
-
-    @settings.deleter
-    def settings(self):
-        raise SettingsError(SettingsError.CANT_DELETE_SETTINGS)
-
-    # % -----------------------------
-
-    @property
-    def potential_points_strategy(self):
-        return self._potential_points_strategy
-
-    @potential_points_strategy.setter
-    def potential_points_strategy(self, value):
-        if not isinstance(value, tuple):
-            raise PotentialPointsError(PotentialPointsError.TYPE)
-
-        checked_elements = set()
-        for el in value:
-            if not isinstance(el, str):
-                raise PotentialPointsError(PotentialPointsError.ELEMENT_TYPE)
-
-            if el not in self.DEFAULT_POTENTIAL_POINTS_STRATEGY:
-                raise PotentialPointsError(PotentialPointsError.ELEMENT_NOT_POINT)
-
-            if el in checked_elements:
-                raise PotentialPointsError(PotentialPointsError.DUPLICATE_POINTS)
-            checked_elements.add(el)
-
-        self._potential_points_strategy = value
-
-    @potential_points_strategy.deleter
-    def potential_points_strategy(self):
-        raise PotentialPointsError(PotentialPointsError.DELETE)
-
-
 class SolutionFigureMixin:
     """
     Mixin implementing the methods for building the
     figures of the solution.
+
+    Extends the settings validation to support the
+    figure operation.
+
+    Must be used on leftmost position in the inheritance.
     """
 
     FIGURE_FILE_NAME_REGEX = re.compile(r"[a-zA-Z0-9_-]{1,45}$")
     FIGURE_DEFAULT_FILE_NAME = "PlotlyGraph"
     ACCEPTED_IMAGE_EXPORT_FORMATS = ("pdf", "png", "jpeg", "webp", "svg")
+    # settings constraints
+    PLOTLY_MIN_VER = ("5", "14", "0")
+    PLOTLY_MAX_VER = ("6", "0", "0")
+    KALEIDO_MIN_VER = ("0", "2", "1")
+    KALEIDO_MAX_VER = ("0", "3", "0")
 
     def _check_plotly_kaleido_versions(self) -> None:
         self._plotly_installed = False
