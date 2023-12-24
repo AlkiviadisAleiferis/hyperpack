@@ -1,5 +1,6 @@
 import math
 import platform
+import sys
 import time
 from .abstract import AbstractLocalSearch
 from .loggers import hyperLogger, logger
@@ -17,284 +18,87 @@ from .exceptions import (
 from array import array
 from collections import deque
 from copy import deepcopy
-from multiprocessing import cpu_count, current_process
 from pathlib import Path
 import re
 
 
-class StructuresUtilsMixin:
+class StructuresPropertiesMixin:
     """
-    Mixin providing structures (containers, items)
-    utilities methods.
+    Mixin for structures management.
     """
 
-    def reset_container_height(self):
-        """
-        Resets the imaginary (strip packing) container's height.
-        If called form bin packing instace, nothing happens.
-        """
+    @property
+    def items(self):
+        return self._items
+
+    @items.setter
+    def items(self, value):
+        self._items = Items(value, self)
+
+    @items.deleter
+    def items(self):
+        raise ItemsError(ItemsError.CANT_DELETE)
+
+    # % -----------------------------
+
+    @property
+    def containers(self):
+        return self._containers
+
+    @containers.setter
+    def containers(self, value):
         if self._strip_pack:
-            self._container_height = (
-                self.containers[self.STRIP_PACK_CONT_ID]["W"] * self.MAX_W_L_RATIO
-            )
-            self._container_min_height = None
-        else:
-            return
+            raise ContainersError(ContainersError.STRIP_PACK_ONLY)
+        self._containers = Containers(value, self)
+        self._containers_num = len(value)
 
-    def orient_items(self, orientation: str or None = "wide") -> None:
-        """
-        Method for orienting the ``items`` structure.
+    @containers.deleter
+    def containers(self):
+        raise ContainersError(ContainersError.CANT_DELETE)
 
-        **OPERATION**
-            Orients each item in items set by rotating it
-            (interchange w, l of item).
+    # % -----------------------------
 
-            See :ref:`here<orient_items>` for
-            detailed explanation of the method.
+    @property
+    def container_height(self):
+        return self._container_height
 
-        **PARAMETERS**
-            ``orientation`` : "wide"/"long". If None provided, \
-            orientation will be skipped.
+    @container_height.setter
+    def container_height(self, value):
+        if not isinstance(value, int) or value < 1:
+            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
 
-        **WARNING**
-            Changing the values of ``self.items`` causes
-            resetting of the ``solution`` attribute.
-        """
-        if orientation is None:
-            return
+        if self._container_min_height is not None:
+            if value < self._container_min_height:
+                raise ContainersError(ContainersError.STRIP_PACK_MIN_HEIGHT)
 
-        if not self._rotation:
-            hyperLogger.warning("can't rotate items. Rotation is disabled")
-            return
+        self._container_height = value
 
-        items = self._items
+    @container_height.deleter
+    def container_height(self):
+        raise DimensionsError(DimensionsError.CANT_DELETE)
 
-        if orientation not in ("wide", "long"):
-            hyperLogger.warning(
-                f"orientation parameter '{orientation}' not valid. Orientation skipped."
-            )
-            return
+    # % -----------------------------
 
-        for _id in items:
-            w, l = items[_id]["w"], items[_id]["l"]
+    @property
+    def container_min_height(self):
+        return self._container_min_height
 
-            if orientation == "wide" and l > w:
-                items[_id]["w"], items[_id]["l"] = l, w
+    @container_min_height.setter
+    def container_min_height(self, value):
+        if not isinstance(value, int) or value < 1:
+            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
 
-            elif orientation == "long" and l < w:
-                items[_id]["w"], items[_id]["l"] = l, w
+        if value > self._container_height:
+            raise ContainersError(ContainersError.STRIP_PACK_MIN_HEIGHT)
 
-    def sort_items(self, sorting_by: tuple or None = ("area", True)) -> None:
-        """
-        Method for ordering the ``items`` structure. See :ref:`here<sort_items>` for
-        detailed explanation of the method.
+        self._container_min_height = value
 
-        **OPERATION**
-            Sorts the ``items``
-
-            according to ``sorting_by`` parameter guidelines.
-
-        **PARAMETERS**
-            ``sorting_by`` : (sorting criterion, reverse). If None provided, sorting
-            will be skipped.
-
-        **WARNING**
-            Changing the values of ``items`` causes resetting of the
-            ``solution`` attribute.
-
-        **RETURNS**
-            ``None``
-        """
-        if sorting_by is None:
-            return
-
-        by, reverse = sorting_by
-
-        items = self._items.deepcopy()
-
-        if by == "area":
-            sorted_items = [[i["w"] * i["l"], _id] for _id, i in items.items()]
-            sorted_items.sort(reverse=reverse)
-        elif by == "perimeter":
-            sorted_items = [[i["w"] * 2 + i["l"] * 2, _id] for _id, i in items.items()]
-            sorted_items.sort(reverse=reverse)
-        elif by == "longest_side_ratio":
-            sorted_items = [
-                [max(i["w"], i["l"]) / min(i["w"], i["l"]), _id]
-                for _id, i in items.items()
-            ]
-            sorted_items.sort(reverse=reverse)
-        else:
-            raise NotImplementedError
-
-        self.items = {el[1]: items[el[1]] for el in sorted_items}
+    @container_min_height.deleter
+    def container_min_height(self):
+        raise DimensionsError(DimensionsError.CANT_DELETE)
 
 
-class FigureBuilderMixin:
-    """
-    Mixin implementing the methods for building the
-    figures of the solution.
-    """
-
-    def colorgen(self, index) -> str:
-        """
-        Method for returning a hexadecimal color for every item
-        in the graph.
-        """
-        return constants.ITEMS_COLORS[index]
-
-    def get_figure_dtick_value(self, dimension, scale=20):
-        """
-        Method for determining the distance between ticks in
-        x or y dimension.
-        """
-        return math.ceil(dimension / scale)
-
-    def create_figure(self, show=False) -> None:
-        """
-        Method used for creating figures and showing/exporting them.
-
-        **WARNING**
-            plotly library at least 5.14.0 must be installed in environment,
-            and for image exportation, at least kaleido 0.2.1.
-
-            See :ref:`here<figures_guide>` for
-            detailed explanation of the method.
-
-        **OPERATION**
-            Create's the solution's figure.
-
-        **PARAMETERS**
-            ``show``: if True, the created figure will be displayed in browser \
-            after creation.
-        """
-
-        if not self.solution:
-            hyperLogger.warning(FigureExportError.NO_SOLUTION_WARNING)
-            return
-
-        if not self._plotly_installed:
-            raise SettingsError(SettingsError.PLOTLY_NOT_INSTALLED)
-
-        elif not self._plotly_ver_ok:
-            raise SettingsError(SettingsError.PLOTLY_VERSION)
-        else:
-            import plotly
-
-            go = plotly.graph_objects
-
-        figure_settings = self._settings.get("figure", {})
-        export = figure_settings.get("export")
-        show = figure_settings.get("show") or show
-
-        if not show and export is None:
-            hyperLogger.warning(FigureExportError.NO_FIGURE_OPERATION)
-            return
-
-        containers_ids = tuple(self._containers)
-
-        for cont_id in containers_ids:
-            fig = go.Figure()
-            fig.add_annotation(
-                text="Powered by Hyperpack",
-                showarrow=False,
-                xref="x domain",
-                yref="y domain",
-                # The arrow head will be 25% along the x axis, starting from the left
-                x=0.5,
-                # The arrow head will be 40% along the y axis, starting from the bottom
-                y=1,
-                font={"size": 25, "color": "white"},
-            )
-            fig.update_layout(
-                title=dict(text=f"{cont_id}", font=dict(size=25)),
-                xaxis_title="Container width (x)",
-                yaxis_title="Container Length (y)",
-            )
-
-            L = self._containers._get_height(cont_id)
-            W = self._containers[cont_id]["W"]
-            fig.update_xaxes(
-                range=[-2, W + 2],
-                tick0=0,
-                dtick=self.get_figure_dtick_value(W),
-                zeroline=True,
-                zerolinewidth=1,
-            )
-            fig.update_yaxes(
-                range=[-2, L + 2],
-                scaleanchor="x",
-                scaleratio=1,
-                tick0=0,
-                dtick=self.get_figure_dtick_value(L),
-                zeroline=True,
-                zerolinewidth=1,
-            )
-            for i, item_id in enumerate(self.solution[cont_id]):
-                Xo, Yo, w, l = self.solution[cont_id][item_id]
-                shape_color = self.colorgen(i)
-                fig.add_shape(
-                    type="rect",
-                    x0=Xo,
-                    y0=Yo,
-                    x1=Xo + w,
-                    y1=Yo + l,
-                    line=dict(color="black"),
-                    fillcolor=shape_color,
-                    label={"text": item_id, "font": {"color": "white", "size": 12}},
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=[Xo, Xo + w, Xo + w, Xo],
-                        y=[Yo, Yo, Yo + l, Yo + l],
-                        showlegend=False,
-                        hoverinfo="x+y",
-                    )
-                )
-
-            fig.add_shape(
-                type="rect",
-                x0=0,
-                y0=0,
-                x1=W,
-                y1=L,
-                line=dict(
-                    color="Black",
-                    width=2,
-                ),
-            )
-
-            if export:
-                try:
-                    export_type = export.get("type", "html")
-                    export_path = Path(export["path"])
-                    file_name = export.get("file_name", "")
-
-                    if export_type == "html":
-                        fig.write_html(export_path / f"{file_name}__{cont_id}.html")
-
-                    elif export_type == "image":
-                        import plotly.io as pio
-
-                        file_format = export["format"]
-                        width = export.get("width") or 1700
-                        height = export.get("height") or 1700
-                        scale = 1
-                        pio.kaleido.scope.default_width = width
-                        pio.kaleido.scope.default_height = height
-                        pio.kaleido.scope.default_scale = scale
-                        fig.write_image(
-                            export_path / f"{file_name}__{cont_id}.{file_format}"
-                        )
-
-                except Exception as e:
-                    error_msg = FigureExportError.FIGURE_EXPORT.format(e)
-                    raise FigureExportError(error_msg)
-            if show:
-                fig.show(config={"responsive": False})
-
-
-class PointGenSolverMixin:
+class PointGenerationMixin:
     """
     Mixin providing the point generation functionality to
     properly namespaced child class.
@@ -874,79 +678,102 @@ class PointGenSolverMixin:
         self.solution, self.obj_val_per_container = (solution, obj_val_per_container)
 
 
-class StripPackMixin:
+class SolutionLoggingMixin:
     """
-    Mixin for strip packing problem differentiation.
+    Mixin for logging the solution.
     """
 
-    # strip pack constants
-    MAX_W_L_RATIO = 10
-    STRIP_PACK_INIT_HEIGHT = 2**100
-    STRIP_PACK_CONT_ID = "strip-pack-container"
-
-    def _check_strip_pack(self, strip_pack_width) -> None:
+    def log_solution(self) -> str:
         """
-        This method checks ``strip_pack_width`` value and set's initial values for:
+        Logs the solution.
 
-            ``_strip_pack``: is the attribute modifying the problem. Used for \
-            logic branching in execution. Modifies:
-
-                ``_construct``: Forces the method to accept ``container_height`` \
-                as container's height.
-
-                ``local_search``: by lowering the ``container_height`` in every new node.
-
-                ``compare_solution``: Makes comparison check if all items are in solution.
-
-                ``_containers._get_height``: Branches method to return solution height \
-                or a minimum.
-
-            ``_container_height``: is the actual container's height used
-            in ``_construct``. Is also updated in every new node solution \
-            in local_search, where a lower height is proven feasible.
-
-            ``_container_min_height``: is the minimum height that the container \
-            can get (not the solution height!).
-
-            ``containers``: single container with preset height for strip packing mode.
+        If a solution isn't available a proper message is displayed.
         """
-        self._container_min_height = None
-
-        if strip_pack_width is None:
-            self._strip_pack = False
-            self._container_height = None
-            self._heights_history = []
+        if not getattr(self, "solution", False):
+            hyperLogger.warning("No solving operation has been concluded.")
             return
 
-        if not isinstance(strip_pack_width, int) or strip_pack_width <= 0:
-            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
+        log = ["\nSolution Log:"]
+        percent_items_stored = sum(
+            [len(i) for cont_id, i in self.solution.items()]
+        ) / len(self._items)
+        log.append(f"Percent total items stored : {percent_items_stored*100:.4f}%")
 
-        self._strip_pack = True
-        self._container_height = self.MAX_W_L_RATIO * strip_pack_width
-        containers = {
-            "strip-pack-container": {
-                "W": strip_pack_width,
-                "L": self.STRIP_PACK_INIT_HEIGHT,
-            }
-        }
-        self._containers = Containers(containers, self)
+        for cont_id in self._containers:
+            L = self._containers._get_height(cont_id)
+            W = self._containers[cont_id]["W"]
+            log.append(f"Container: {cont_id} {W}x{L}")
+            total_items_area = sum(
+                [i[2] * i[3] for item_id, i in self.solution[cont_id].items()]
+            )
+            log.append(f"\t[util%] : {total_items_area*100/(W*L):.4f}%")
+            if self._strip_pack:
+                solution = self.solution[cont_id]
+                # height of items stack in solution
+                max_height = max(
+                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                    or [0]
+                )
+                log.append(f"\t[max height] : {max_height}")
+
+        items_ids = {_id for cont_id, items in self.solution.items() for _id in items}
+        remaining_items = [_id for _id in self._items if _id not in items_ids]
+        log.append(f"\nRemaining items : {remaining_items}")
+        output_log = "\n".join(log)
+        hyperLogger.info(output_log)
+        return output_log
 
 
-class SettingsMixin:
+class SolverPropertiesMixin:
+    @property
+    def settings(self):
+        return self._settings
+
+    @settings.setter
+    def settings(self, value):
+        self._settings = value
+        self.validate_settings()
+
+    @settings.deleter
+    def settings(self):
+        raise SettingsError(SettingsError.CANT_DELETE_SETTINGS)
+
+    # % -----------------------------
+
+    @property
+    def potential_points_strategy(self):
+        return self._potential_points_strategy
+
+    @potential_points_strategy.setter
+    def potential_points_strategy(self, value):
+        if not isinstance(value, tuple):
+            raise PotentialPointsError(PotentialPointsError.TYPE)
+
+        checked_elements = set()
+        for el in value:
+            if not isinstance(el, str):
+                raise PotentialPointsError(PotentialPointsError.ELEMENT_TYPE)
+
+            if el not in self.DEFAULT_POTENTIAL_POINTS_STRATEGY:
+                raise PotentialPointsError(PotentialPointsError.ELEMENT_NOT_POINT)
+
+            if el in checked_elements:
+                raise PotentialPointsError(PotentialPointsError.DUPLICATE_POINTS)
+            checked_elements.add(el)
+
+        self._potential_points_strategy = value
+
+    @potential_points_strategy.deleter
+    def potential_points_strategy(self):
+        raise PotentialPointsError(PotentialPointsError.DELETE)
+
+
+class SolutionFigureMixin:
     """
-    Mixin for  initiation and validation
-    of the problems settings.
+    Mixin implementing the methods for building the
+    figures of the solution.
     """
 
-    # settings defaults
-    MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 60
-    WORKERS_NUM_DEFAULT_VALUE = 1
-    ROTATION_DEFAULT_VALUE = True
-    # settings constraints
-    PLOTLY_MIN_VER = ("5", "14", "0")
-    PLOTLY_MAX_VER = ("6", "0", "0")
-    KALEIDO_MIN_VER = ("0", "2", "1")
-    KALEIDO_MAX_VER = ("0", "3", "0")
     FIGURE_FILE_NAME_REGEX = re.compile(r"[a-zA-Z0-9_-]{1,45}$")
     FIGURE_DEFAULT_FILE_NAME = "PlotlyGraph"
     ACCEPTED_IMAGE_EXPORT_FORMATS = ("pdf", "png", "jpeg", "webp", "svg")
@@ -977,95 +804,10 @@ class SettingsMixin:
             if kaleido_ver >= self.KALEIDO_MIN_VER and kaleido_ver < self.KALEIDO_MAX_VER:
                 self._kaleido_ver_ok = True
 
-    def validate_settings(self) -> None:
-        """
-        Method for validating and applying the settings either
-        provided through:
-        **A.** instantiation
-        **B.** explicit assignment to self.settings
-        **C.** calling ``self.validate_settings()``.
+    def _validate_figure_settings(self) -> None:
+        self._check_plotly_kaleido_versions()
 
-        **OPERATION**
-            Validates ``settings`` instance attribute data structure and format.
-
-            Applies said settings to correlated private attributes.
-
-        **PARAMETERS**
-            ``None``
-
-
-        **RETURNS**
-            `None`
-        """
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS FORMAT VALIDATION
-        settings = self._settings
-        if not isinstance(settings, dict):
-            raise SettingsError(SettingsError.TYPE)
-
-        # % ----------------------------------------------------------------------------
-        # IF NO SETTINGS PROVIDED, SET DEFAULT VALUES FOR THESE ATTRIBUTES
-        if not settings:
-            # if no settings are provided, use DEFAULT values for these attributes
-            self._rotation = self.ROTATION_DEFAULT_VALUE
-            self._max_time_in_seconds = self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
-            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
-            return
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS MAX TIME IN SECONDS
-        max_time_in_seconds = self._settings.get(
-            "max_time_in_seconds", self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
-        )
-        if not isinstance(max_time_in_seconds, int):
-            raise SettingsError(SettingsError.MAX_TIME_IN_SECONDS_TYPE)
-
-        if max_time_in_seconds < 1:
-            raise SettingsError(SettingsError.MAX_TIME_IN_SECONDS_VALUE)
-        self._max_time_in_seconds = max_time_in_seconds
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS WORKERS NUM
-        workers_num = self._settings.get("workers_num")
-        if workers_num is not None:
-            try:
-                if not workers_num > 0:
-                    raise SettingsError(SettingsError.WORKERS_NUM_VALUE)
-            except Exception:
-                raise SettingsError(SettingsError.WORKERS_NUM_VALUE)
-            self._workers_num = workers_num
-        else:
-            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
-            workers_num = self.WORKERS_NUM_DEFAULT_VALUE
-        if workers_num > cpu_count():
-            hyperLogger.warning(SettingsError.WORKERS_NUM_CPU_COUNT_WARNING)
-
-        platform_os = platform.system()
-        if (
-            workers_num > 1
-            and platform_os == "Windows"
-            and current_process().name == "MainProcess"
-        ):
-            hyperLogger.warning(
-                "In Windows OS multiprocessing needs 'Entry point protection'"
-                "\nwhich means adding if '__name__' == '__main__' before"
-                " multiprocessing depending code execution"
-            )
-
-        # % ----------------------------------------------------------------------------
-        # SETTINGS ROTATION
-        rotation = settings.get("rotation")
-        if rotation is not None:
-            if not isinstance(rotation, bool):
-                raise SettingsError(SettingsError.ROTATION_TYPE)
-            self._rotation = rotation
-        else:
-            self._rotation = self.ROTATION_DEFAULT_VALUE
-
-        # % ----------------------------------------------------------------------------
-        # FIGURE SETTINGS VALIDATION
-        figure_settings = settings.get("figure", {})
+        figure_settings = self._settings.get("figure", {})
 
         if not isinstance(figure_settings, dict):
             raise SettingsError(SettingsError.FIGURE_KEY_TYPE)
@@ -1146,14 +888,270 @@ class SettingsMixin:
                             raise SettingsError(SettingsError.FIGURE_EXPORT_HEIGHT_VALUE)
 
             show = figure_settings.get("show", False)
-            if "show" in figure_settings and not isinstance(show, bool):
+            if not isinstance(show, bool):
                 raise SettingsError(SettingsError.FIGURE_SHOW_VALUE)
+
+    def colorgen(self, index) -> str:
+        """
+        Method for returning a hexadecimal color for every item
+        in the graph.
+        """
+        return constants.ITEMS_COLORS[index]
+
+    def get_figure_dtick_value(self, dimension, scale=20):
+        """
+        Method for determining the distance between ticks in
+        x or y dimension.
+        """
+        return math.ceil(dimension / scale)
+
+    def create_figure(self, show=False) -> None:
+        """
+        Method used for creating figures and showing/exporting them.
+
+        **WARNING**
+            plotly library at least 5.14.0 must be installed in environment,
+            and for image exportation, at least kaleido 0.2.1.
+
+            See :ref:`here<figures_guide>` for
+            detailed explanation of the method.
+
+        **OPERATION**
+            Create's the solution's figure.
+
+        **PARAMETERS**
+            ``show``: if True, the created figure will be displayed in browser \
+            after creation.
+        """
+
+        if not self.solution:
+            hyperLogger.warning(FigureExportError.NO_SOLUTION_WARNING)
+            return
+
+        if not self._plotly_installed:
+            raise SettingsError(SettingsError.PLOTLY_NOT_INSTALLED)
+
+        elif not self._plotly_ver_ok:
+            raise SettingsError(SettingsError.PLOTLY_VERSION)
+
+        else:
+            import plotly
+
+            go = plotly.graph_objects
+
+        figure_settings = self._settings.get("figure", {})
+        export = figure_settings.get("export")
+        show = figure_settings.get("show") or show
+
+        if not show and export is None:
+            hyperLogger.warning(FigureExportError.NO_FIGURE_OPERATION)
+            return
+
+        containers_ids = tuple(self._containers)
+
+        for cont_id in containers_ids:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="Powered by Hyperpack",
+                showarrow=False,
+                xref="x domain",
+                yref="y domain",
+                # The arrow head will be 25% along the x axis, starting from the left
+                x=0.5,
+                # The arrow head will be 40% along the y axis, starting from the bottom
+                y=1,
+                font={"size": 25, "color": "white"},
+            )
+            fig.update_layout(
+                title=dict(text=f"{cont_id}", font=dict(size=25)),
+                xaxis_title="Container width (x)",
+                yaxis_title="Container Length (y)",
+            )
+
+            L = self._containers._get_height(cont_id)
+            W = self._containers[cont_id]["W"]
+            fig.update_xaxes(
+                range=[-2, W + 2],
+                tick0=0,
+                dtick=self.get_figure_dtick_value(W),
+                zeroline=True,
+                zerolinewidth=1,
+            )
+            fig.update_yaxes(
+                range=[-2, L + 2],
+                scaleanchor="x",
+                scaleratio=1,
+                tick0=0,
+                dtick=self.get_figure_dtick_value(L),
+                zeroline=True,
+                zerolinewidth=1,
+            )
+            for i, item_id in enumerate(self.solution[cont_id]):
+                Xo, Yo, w, l = self.solution[cont_id][item_id]
+                shape_color = self.colorgen(i)
+                fig.add_shape(
+                    type="rect",
+                    x0=Xo,
+                    y0=Yo,
+                    x1=Xo + w,
+                    y1=Yo + l,
+                    line=dict(color="black"),
+                    fillcolor=shape_color,
+                    label={"text": item_id, "font": {"color": "white", "size": 12}},
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=[Xo, Xo + w, Xo + w, Xo],
+                        y=[Yo, Yo, Yo + l, Yo + l],
+                        showlegend=False,
+                        hoverinfo="x+y",
+                    )
+                )
+
+            fig.add_shape(
+                type="rect",
+                x0=0,
+                y0=0,
+                x1=W,
+                y1=L,
+                line=dict(
+                    color="Black",
+                    width=2,
+                ),
+            )
+
+            if export:
+                try:
+                    export_type = export.get("type", "html")
+                    export_path = Path(export["path"])
+                    file_name = export.get("file_name", "")
+
+                    if export_type == "html":
+                        fig.write_html(export_path / f"{file_name}__{cont_id}.html")
+
+                    elif export_type == "image":
+                        import plotly.io as pio
+
+                        file_format = export["format"]
+                        width = export.get("width") or 1700
+                        height = export.get("height") or 1700
+                        scale = 1
+                        pio.kaleido.scope.default_width = width
+                        pio.kaleido.scope.default_height = height
+                        pio.kaleido.scope.default_scale = scale
+                        fig.write_image(
+                            export_path / f"{file_name}__{cont_id}.{file_format}"
+                        )
+
+                except Exception as e:
+                    error_msg = FigureExportError.FIGURE_EXPORT.format(e)
+                    raise FigureExportError(error_msg)
+            if show:
+                fig.show(config={"responsive": False})
+
+    def validate_settings(self) -> None:
+        self._validate_settings()
+        self._validate_figure_settings()
+
+
+class ItemsManipulationMixin:
+    """
+    Mixin providing ``items`` manipulation methods.
+    """
+
+    def orient_items(self, orientation: str or None = "wide") -> None:
+        """
+        Method for orienting the ``items`` structure.
+
+        **OPERATION**
+            Orients each item in items set by rotating it
+            (interchange w, l of item).
+
+            See :ref:`here<orient_items>` for
+            detailed explanation of the method.
+
+        **PARAMETERS**
+            ``orientation`` : "wide"/"long". If None provided, \
+            orientation will be skipped.
+
+        **WARNING**
+            Changing the values of ``self.items`` causes
+            resetting of the ``solution`` attribute.
+        """
+        if orientation is None:
+            return
+
+        if not self._rotation:
+            hyperLogger.warning("can't rotate items. Rotation is disabled")
+            return
+
+        items = self._items
+
+        if orientation not in ("wide", "long"):
+            hyperLogger.warning(
+                f"orientation parameter '{orientation}' not valid. Orientation skipped."
+            )
+            return
+
+        for _id in items:
+            w, l = items[_id]["w"], items[_id]["l"]
+
+            if orientation == "wide" and l > w:
+                items[_id]["w"], items[_id]["l"] = l, w
+
+            elif orientation == "long" and l < w:
+                items[_id]["w"], items[_id]["l"] = l, w
+
+    def sort_items(self, sorting_by: tuple or None = ("area", True)) -> None:
+        """
+        Method for ordering the ``items`` structure. See :ref:`here<sort_items>` for
+        detailed explanation of the method.
+
+        **OPERATION**
+            Sorts the ``items``
+
+            according to ``sorting_by`` parameter guidelines.
+
+        **PARAMETERS**
+            ``sorting_by`` : (sorting criterion, reverse). If None provided, sorting
+            will be skipped.
+
+        **WARNING**
+            Changing the values of ``items`` causes resetting of the
+            ``solution`` attribute.
+
+        **RETURNS**
+            ``None``
+        """
+        if sorting_by is None:
+            return
+
+        by, reverse = sorting_by
+
+        items = self._items.deepcopy()
+
+        if by == "area":
+            sorted_items = [[i["w"] * i["l"], _id] for _id, i in items.items()]
+            sorted_items.sort(reverse=reverse)
+        elif by == "perimeter":
+            sorted_items = [[i["w"] * 2 + i["l"] * 2, _id] for _id, i in items.items()]
+            sorted_items.sort(reverse=reverse)
+        elif by == "longest_side_ratio":
+            sorted_items = [
+                [max(i["w"], i["l"]) / min(i["w"], i["l"]), _id]
+                for _id, i in items.items()
+            ]
+            sorted_items.sort(reverse=reverse)
+        else:
+            raise NotImplementedError
+
+        self.items = {el[1]: items[el[1]] for el in sorted_items}
 
 
 class DeepcopyMixin:
     """
-    Mixin class providing deepcopy utilities for
-    deepcopying attributes.
+    Mixin class providing copy/deepcopy utilities for
+    certain attributes.
     """
 
     def _copy_objective_val_per_container(self, obj_val_per_container=None):
@@ -1176,173 +1174,7 @@ class DeepcopyMixin:
         }
 
 
-class SolutionLoggingMixin:
-    """
-    Mixin for logging the solution.
-    """
-
-    def log_solution(self) -> str:
-        """
-        Logs the solution.
-
-        If a solution isn't available a proper message is displayed.
-        """
-        if not getattr(self, "solution", False):
-            hyperLogger.warning("No solving operation has been concluded.")
-            return
-
-        log = ["\nSolution Log:"]
-        percent_items_stored = sum(
-            [len(i) for cont_id, i in self.solution.items()]
-        ) / len(self._items)
-        log.append(f"Percent total items stored : {percent_items_stored*100:.4f}%")
-
-        for cont_id in self._containers:
-            L = self._containers._get_height(cont_id)
-            W = self._containers[cont_id]["W"]
-            log.append(f"Container: {cont_id} {W}x{L}")
-            total_items_area = sum(
-                [i[2] * i[3] for item_id, i in self.solution[cont_id].items()]
-            )
-            log.append(f"\t[util%] : {total_items_area*100/(W*L):.4f}%")
-            if self._strip_pack:
-                solution = self.solution[cont_id]
-                # height of items stack in solution
-                max_height = max(
-                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
-                    or [0]
-                )
-                log.append(f"\t[max height] : {max_height}")
-
-        items_ids = {_id for cont_id, items in self.solution.items() for _id in items}
-        remaining_items = [_id for _id in self._items if _id not in items_ids]
-        log.append(f"\nRemaining items : {remaining_items}")
-        output_log = "\n".join(log)
-        hyperLogger.info(output_log)
-        return output_log
-
-
-class PropertiesMixin:
-    """
-    Mixin for attribute management.
-    """
-
-    @property
-    def items(self):
-        return self._items
-
-    @items.setter
-    def items(self, value):
-        self._items = Items(value, self)
-
-    @items.deleter
-    def items(self):
-        raise ItemsError(ItemsError.CANT_DELETE)
-
-    # % -----------------------------
-
-    @property
-    def containers(self):
-        return self._containers
-
-    @containers.setter
-    def containers(self, value):
-        if self._strip_pack:
-            raise ContainersError(ContainersError.STRIP_PACK_ONLY)
-        self._containers = Containers(value, self)
-        self._containers_num = len(value)
-
-    @containers.deleter
-    def containers(self):
-        raise ContainersError(ContainersError.CANT_DELETE)
-
-    # % -----------------------------
-
-    @property
-    def settings(self):
-        return self._settings
-
-    @settings.setter
-    def settings(self, value):
-        self._settings = value
-        self.validate_settings()
-
-    @settings.deleter
-    def settings(self):
-        raise SettingsError(SettingsError.CANT_DELETE_SETTINGS)
-
-    # % -----------------------------
-
-    @property
-    def potential_points_strategy(self):
-        return self._potential_points_strategy
-
-    @potential_points_strategy.setter
-    def potential_points_strategy(self, value):
-        if not isinstance(value, tuple):
-            raise PotentialPointsError(PotentialPointsError.TYPE)
-
-        checked_elements = set()
-        for el in value:
-            if not isinstance(el, str):
-                raise PotentialPointsError(PotentialPointsError.ELEMENT_TYPE)
-
-            if el not in self.DEFAULT_POTENTIAL_POINTS_STRATEGY:
-                raise PotentialPointsError(PotentialPointsError.ELEMENT_NOT_POINT)
-
-            if el in checked_elements:
-                raise PotentialPointsError(PotentialPointsError.DUPLICATE_POINTS)
-            checked_elements.add(el)
-
-        self._potential_points_strategy = value
-
-    @potential_points_strategy.deleter
-    def potential_points_strategy(self):
-        raise PotentialPointsError(PotentialPointsError.DELETE)
-
-    # % -----------------------------
-
-    @property
-    def container_height(self):
-        return self._container_height
-
-    @container_height.setter
-    def container_height(self, value):
-        if not isinstance(value, int) or value < 1:
-            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
-
-        if self._container_min_height is not None:
-            if value < self._container_min_height:
-                raise ContainersError(ContainersError.STRIP_PACK_MIN_HEIGHT)
-
-        self._container_height = value
-
-    @container_height.deleter
-    def container_height(self):
-        raise DimensionsError(DimensionsError.CANT_DELETE)
-
-    # % -----------------------------
-
-    @property
-    def container_min_height(self):
-        return self._container_min_height
-
-    @container_min_height.setter
-    def container_min_height(self, value):
-        if not isinstance(value, int) or value < 1:
-            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
-
-        if value > self._container_height:
-            raise ContainersError(ContainersError.STRIP_PACK_MIN_HEIGHT)
-
-        self._container_min_height = value
-
-    @container_min_height.deleter
-    def container_min_height(self):
-        raise DimensionsError(DimensionsError.CANT_DELETE)
-
-
-class LocalSearchMixin(AbstractLocalSearch):
+class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
     """
     Mixin implementing the Local Search.
     """

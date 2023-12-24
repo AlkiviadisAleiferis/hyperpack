@@ -1,15 +1,12 @@
 import math
-import re
+import platform
 import sys
 import time
-from collections import deque
 from itertools import permutations
-from multiprocessing import Array
-from pathlib import Path
+from multiprocessing import Array, cpu_count, current_process
 
 from . import constants
 from . import mixins
-from .abstract import AbstractLocalSearch
 from .processes import HyperSearchProcess
 from .exceptions import (
     ContainersError,
@@ -23,24 +20,18 @@ from .structures import Containers, Items
 ITEMS_COLORS = constants.ITEMS_COLORS
 
 
-class PointGenPack(
-    mixins.PointGenSolverMixin,
-    mixins.DeepcopyMixin,
-    mixins.FigureBuilderMixin,
-    mixins.PropertiesMixin,
-    mixins.StripPackMixin,
-    mixins.SettingsMixin,
-    mixins.SolutionLoggingMixin,
-    mixins.StructuresUtilsMixin,
-):
+class BasePackingProblem(mixins.StructuresPropertiesMixin):
     """
-    Base class for initiating the problem
-    and grouping the mixins for solving.
+    Base class for initializing/managing
+    the base packing problem attributes.
     """
 
-    def __init__(
-        self, containers=None, items=None, settings=None, *, strip_pack_width=None
-    ):
+    # strip pack constants
+    MAX_W_L_RATIO = 10
+    STRIP_PACK_INIT_HEIGHT = 2**100
+    STRIP_PACK_CONT_ID = "strip-pack-container"
+
+    def __init__(self, containers=None, items=None, *, strip_pack_width=None):
         self._check_strip_pack(strip_pack_width)
         if not self._strip_pack:
             self._containers = Containers(containers, self)
@@ -49,11 +40,96 @@ class PointGenPack(
 
         self._items = Items(items, self)
 
-        self._max_time_in_seconds = None
-        self._workers_num = None
+    def _check_strip_pack(self, strip_pack_width) -> None:
+        """
+        This method checks ``strip_pack_width`` value and set's initial values for:
+
+            ``_strip_pack``: is the attribute modifying the problem. Used for \
+            logic branching in execution. Affects:
+
+                ``_construct``: Forces the method to accept ``container_height`` \
+                as container's height.
+
+                ``local_search``: by lowering the ``container_height`` in every new node.
+
+                ``compare_solution``: Makes comparison check if all items are in solution.
+
+                ``_containers._get_height``: Branches method to return solution height \
+                or a minimum.
+
+            ``_container_height``: is the actual container's height used
+            in ``_construct``. Is also updated in every new node solution \
+            in local_search, where a lower height is proven feasible.
+
+            ``_container_min_height``: is the minimum height that the container \
+            can get (not the solution height!).
+
+            ``containers``: single container with preset height for strip packing mode.
+        """
+        self._container_min_height = None
+
+        if strip_pack_width is None:
+            self._strip_pack = False
+            self._container_height = None
+            self._heights_history = []
+            return
+
+        if not isinstance(strip_pack_width, int) or strip_pack_width <= 0:
+            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
+        containers = {
+            "strip-pack-container": {
+                "W": strip_pack_width,
+                "L": self.STRIP_PACK_INIT_HEIGHT,
+            }
+        }
+
+        self._strip_pack = True
+        self._container_height = self.MAX_W_L_RATIO * strip_pack_width
+        self._containers = Containers(containers, self)
+
+    def reset_container_height(self):
+        """
+        Resets the imaginary (strip packing) container's height.
+
+        If called from bin-packing instace, nothing happens.
+        """
+        if self._strip_pack:
+            self._container_height = (
+                self.containers[self.STRIP_PACK_CONT_ID]["W"] * self.MAX_W_L_RATIO
+            )
+            self._container_min_height = None
+        else:
+            return
+
+
+class PointGenerationSolver(
+    BasePackingProblem,
+    mixins.SolverPropertiesMixin,
+    mixins.PointGenerationMixin,
+):
+    """
+    Class that implements Point Generation solving.
+
+    Extends problem's attributes to provide solving settings.
+    """
+
+    # settings defaults
+    ROTATION_DEFAULT_VALUE = True
+    # settings constraints
+    PLOTLY_MIN_VER = ("5", "14", "0")
+    PLOTLY_MAX_VER = ("6", "0", "0")
+    KALEIDO_MIN_VER = ("0", "2", "1")
+    KALEIDO_MAX_VER = ("0", "3", "0")
+
+    def __init__(
+        self, containers=None, items=None, settings=None, *, strip_pack_width=None
+    ):
+        super().__init__(
+            containers=containers, items=items, strip_pack_width=strip_pack_width
+        )
+
         self._rotation = None
         self._settings = settings or {}
-        self._check_plotly_kaleido_versions()
         self.validate_settings()
 
         # it's the strategy used for the instance. It can be
@@ -62,19 +138,154 @@ class PointGenPack(
         self._containers_num = len(self._containers)
         self.solution = {}
 
+    def _validate_settings(self) -> None:
+        """
+        Method for validating and applying the settings either
+        provided through:
+        **A.** instantiation
+        **B.** explicit assignment to self.settings
+        **C.** calling ``self.validate_settings()``.
 
-class HyperPack(PointGenPack, mixins.LocalSearchMixin):
+        **OPERATION**
+            Validates ``settings`` instance attribute data structure and format.
+
+            Applies said settings to correlated private attributes.
+
+        **PARAMETERS**
+            ``None``
+
+
+        **RETURNS**
+            `None`
+        """
+
+        # % ----------------------------------------------------------------------------
+        # SETTINGS FORMAT VALIDATION
+        # % ----------------------------------------------------------------------------
+        settings = self._settings
+        if not isinstance(settings, dict):
+            raise SettingsError(SettingsError.TYPE)
+
+        # % ----------------------------------------------------------------------------
+        # IF NO SETTINGS PROVIDED, SET DEFAULT VALUES FOR THESE ATTRIBUTES
+        # % ----------------------------------------------------------------------------
+        if not settings:
+            # if no settings are provided, use DEFAULT values for these attributes
+            self._rotation = self.ROTATION_DEFAULT_VALUE
+            self._max_time_in_seconds = self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
+            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
+            return
+
+        # % ----------------------------------------------------------------------------
+        # SETTINGS ROTATION
+        # % ----------------------------------------------------------------------------
+        rotation = settings.get("rotation")
+        if rotation is not None:
+            if not isinstance(rotation, bool):
+                raise SettingsError(SettingsError.ROTATION_TYPE)
+            self._rotation = rotation
+        else:
+            self._rotation = self.ROTATION_DEFAULT_VALUE
+
+    def validate_settings(self) -> None:
+        self._validate_settings()
+
+
+class PointGenPack(
+    PointGenerationSolver,
+    mixins.SolutionFigureMixin,
+    mixins.SolutionLoggingMixin,
+):
     """
-    This class extends ``PointGenPack``,
+    This class enables total problem solution and
+    depiction.
+    """
+
+
+class HyperPack(
+    mixins.SolutionFigureMixin,
+    PointGenerationSolver,
+    mixins.LocalSearchMixin,
+    mixins.ItemsManipulationMixin,
+    mixins.SolutionLoggingMixin,
+):
+    """
+    This class extends ``BasePointGenSolver``,
     utilizing its solving functionalities
     by implementing a hypersearch hyper-heuristic
-    using the ``LocalSearchMixin`` mixin.
+    using the ``LocalSearchMixin``.
+
+    Enables total problem solution and
+    depiction.
     """
 
+    # settings defaults
+    MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 60
+    WORKERS_NUM_DEFAULT_VALUE = 1
+    # setting for determining max neighbors parsing
+    # before accepting node as optimum
+    MAX_NEIGHBORS_THROTTLE = 2500
     # Potential points strategies constant suffix
     STRATEGIES_SUFFIX = ("A__", "B__", "F", "E")
     STRATEGIES_SUFFIX_STRIPACK = ("B__", "A__", "F", "E")
-    # max neighbors parsing per node for large instances
+
+    def __init__(
+        self, containers=None, items=None, settings=None, *, strip_pack_width=None
+    ):
+        self._max_time_in_seconds = None
+        self._workers_num = None
+
+        super().__init__(
+            containers=containers,
+            items=items,
+            settings=settings,
+            strip_pack_width=strip_pack_width,
+        )
+
+    def _validate_settings(self) -> None:
+        super()._validate_settings()
+
+        # % ----------------------------------------------------------------------------
+        # SETTINGS MAX TIME IN SECONDS
+        # % ----------------------------------------------------------------------------
+        max_time_in_seconds = self._settings.get(
+            "max_time_in_seconds", self.MAX_TIME_IN_SECONDS_DEFAULT_VALUE
+        )
+        if not isinstance(max_time_in_seconds, int):
+            raise SettingsError(SettingsError.MAX_TIME_IN_SECONDS_TYPE)
+
+        if max_time_in_seconds < 1:
+            raise SettingsError(SettingsError.MAX_TIME_IN_SECONDS_VALUE)
+        self._max_time_in_seconds = max_time_in_seconds
+
+        # % ----------------------------------------------------------------------------
+        # SETTINGS WORKERS NUM
+        # % ----------------------------------------------------------------------------
+        workers_num = self._settings.get("workers_num")
+        if workers_num is not None:
+            try:
+                if not workers_num > 0:
+                    raise SettingsError(SettingsError.WORKERS_NUM_VALUE)
+            except Exception:
+                raise SettingsError(SettingsError.WORKERS_NUM_VALUE)
+            self._workers_num = workers_num
+        else:
+            self._workers_num = self.WORKERS_NUM_DEFAULT_VALUE
+            workers_num = self.WORKERS_NUM_DEFAULT_VALUE
+        if workers_num > cpu_count():
+            hyperLogger.warning(SettingsError.WORKERS_NUM_CPU_COUNT_WARNING)
+
+        platform_os = platform.system()
+        if (
+            workers_num > 1
+            and platform_os == "Windows"
+            and current_process().name == "MainProcess"
+        ):
+            hyperLogger.warning(
+                "In Windows OS multiprocessing needs 'Entry point protection'"
+                "\nwhich means adding if '__name__' == '__main__' before"
+                " multiprocessing depending code execution"
+            )
 
     def _check_solution(self, new_obj_val, best_obj_value):
         if new_obj_val > best_obj_value:

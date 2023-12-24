@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hyperpack"
-version = "1.1.1"
+version = "1.2.0"
 description = "A hyper-heuristic approach on solving the 2D bin packing problem"
 authors = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]
 maintainers = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]

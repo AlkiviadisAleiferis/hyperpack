@@ -8,8 +8,8 @@ LIB_PATH = os.getcwd()
 
 
 def test_settings_figure_plotly_version(plotly_lib_mock_version, caplog, test_data):
-    error_msg = SettingsError.PLOTLY_VERSION
     settings = {"figure": {"export": {"type": "html"}}}
+    error_msg = SettingsError.PLOTLY_VERSION
     with pytest.raises(SettingsError) as exc_info:
         prob = HyperPack(**test_data, settings=settings)
     assert str(exc_info.value) == error_msg
@@ -61,7 +61,7 @@ def test_settings_figure_kaleido_not_found(kaleido_lib_mock_not_found, caplog, t
     assert error_msg in caplog.text
 
 
-def test_settings_figure_plotly_version(kaleido_lib_mock_version, caplog, test_data):
+def test_settings_figure_kaleido_version(kaleido_lib_mock_version, caplog, test_data):
     error_msg = SettingsError.FIGURE_EXPORT_KALEIDO_VERSION
     settings = {
         "figure": {"export": {"type": "image", "path": os.getcwd(), "format": "png"}}

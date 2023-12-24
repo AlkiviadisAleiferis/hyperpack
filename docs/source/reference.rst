@@ -12,8 +12,6 @@ HyperPack
     :show-inheritance:
 
 
-.. _reference_point_gen_pack:
-
 PointGenPack
 ------------
 
@@ -21,32 +19,42 @@ PointGenPack
     :members:
     :private-members:
 
+.. _reference_point_gen_pack:
+
+
+
+BasePackingProblem
+------------------
+
+.. autoclass:: heuristics.BasePackingProblem
+    :members:
+    :private-members:
+
+
+PointGenerationSolver
+---------------------
+
+.. autoclass:: heuristics.PointGenerationSolver
+    :members:
+    :private-members:
+
+
 
 .. _reference_containers_utils:
 
-StructuresUtilsMixin
+
+PointGenerationMixin
 --------------------
 
-.. autoclass:: mixins.StructuresUtilsMixin
+.. autoclass:: mixins.PointGenerationMixin
     :members:
     :private-members:
 
 
-.. _reference_structure_utils:
-
-
-FigureBuilderMixin
-------------------
-
-.. autoclass:: mixins.FigureBuilderMixin
-    :members:
-    :private-members:
-
-
-PointGenSolverMixin
+SolutionFigureMixin
 -------------------
 
-.. autoclass:: mixins.PointGenSolverMixin
+.. autoclass:: mixins.SolutionFigureMixin
     :members:
     :private-members:
 
@@ -55,22 +63,6 @@ DeepcopyMixin
 -------------
 
 .. autoclass:: mixins.DeepcopyMixin
-    :members:
-    :private-members:
-
-
-StripPackMixin
---------------
-
-.. autoclass:: mixins.StripPackMixin
-    :members:
-    :private-members:
-
-
-SettingsMixin
--------------
-
-.. autoclass:: mixins.SettingsMixin
     :members:
     :private-members:
 
