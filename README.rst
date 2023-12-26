@@ -26,9 +26,9 @@ the package dependency free.
 
 Many different variations can be created and solved, accordind to the instantiation data.
 The solvable variants can be summarized in the below characteristics:
-  - Any number and sizes of (rectangular) items.
-  - Any number and sizes of (rectangular) bins (containers).
-  - The items can be rotated or not.
+- Any number and sizes of (rectangular) items.
+- Any number and sizes of (rectangular) bins (containers).
+- The items can be rotated or not.
 
 The above items' charascteristics can also be applied to strip packing problems.
 
