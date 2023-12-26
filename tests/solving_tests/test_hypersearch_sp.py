@@ -36,18 +36,20 @@ def test_sorts_items():
     prob = HyperPack(containers=containers, items=items_a, settings=settings)
     prob.sort_items()
     prob.orient_items()
-    items = prob._deepcopy_items()
+    items = prob._items.deepcopy()
     prob.hypersearch()
     assert prob.items == items
 
 
 def test_orientation_sorting_skip():
+    from hyperpack.structures import Items
+
     # only sorting and orientation can change items# not hypersearch itself
     settings = {"max_time_in_seconds": 1}
     containers = {"c_a": {"W": 25, "L": 25}, "c_b": {"W": 25, "L": 20}}
-    items = HyperPack._deepcopy_items(None, items_a)
+    items = Items(items_a).deepcopy()
     prob = HyperPack(containers=containers, items=items, settings=settings)
-    items = prob._deepcopy_items()
+    items = prob._items.deepcopy()
     prob.hypersearch(orientation=None, sorting_by=None)
     assert prob.items == items
     assert id(prob.items) != id(items)

@@ -11,12 +11,18 @@ arguments:
         Available choices:
             C1, C2, ..., C7
 
+    --check-version:
+        check if provided version checks out
+        provide X.X.X semantic versioning
+
     -p , --problem: the specific items set for profiling. Defaults to 'a'.
         Available choices:
             a, b, c
 """
+
 import cProfile
 import os
+import re
 import pstats
 from argparse import ArgumentParser
 from multiprocessing import Process, Queue
@@ -37,6 +43,13 @@ parser.add_argument(
     action="store_true",
     dest="create_tests_graphs",
     default=False,
+)
+
+parser.add_argument(
+    "--check-version",
+    help="check if provided version checks out",
+    action="store",
+    dest="ver",
 )
 
 parser.add_argument(
@@ -132,6 +145,34 @@ if __name__ == "__main__":
         ps.strip_dirs().sort_stats("cumulative")
         ps.print_stats()
         ps.dump_stats("profiler.prof")
+
+    elif args.ver:
+        print("checking verion ...\n")
+        version = args.ver
+
+        # read README
+        with open("README.rst", "r") as readme:
+            lines = readme.readlines()
+            version_re = re.compile("v([\d]+\.[\d]+\.[\d]+)")
+            check = False
+            for line in lines:
+                if "https://img.shields.io/badge/pypi-v" in line:
+                    print("\tbadge = ", line)
+                    s = version_re.search(line)
+                    if s and s.group(1) == version:
+                        check = True
+                        break
+        if not check:
+            raise ValueError
+
+        # read __init__ version
+        import hyperpack
+
+        print("\thyperpack.__verion__ = ", hyperpack.__version__)
+        if not version == hyperpack.__version__:
+            raise print("\nVersion doesn't check.")
+        else:
+            print("\nVersion checks out.")
 
     else:
         print(__doc__)

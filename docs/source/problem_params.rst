@@ -128,7 +128,7 @@ The problem's containers after instantiation can be found in the ``problem.conta
 
 
 Must be noted, that ``containers`` is not of type dict, but an instance of the ``hyperpack.structures.Containers``
-class, that inherits from ``hyperpack.structures.AbstractStructure``. That is a customized dictionary with
+class, that inherits from ``hyperpack.structures.AbstractStructureSet``. That is a customized dictionary with
 predefined behaviour. Also each container's (and item's as we 'll see later) dimensions are an instance of
 ``hyperpack.structures.Dimensions`` class.
 
@@ -208,7 +208,7 @@ The problem's items after instantiation can be found in the ``items`` instance a
 
 
 Must be noted, that ``items`` is not of type dict, but an instance of the ``hyperpack.structures.Items``
-class, that inherits from ``hyperpack.structures.AbstractStructure``. That is a customized dictionary with
+class, that inherits from ``hyperpack.structures.AbstractStructureSet``. That is a customized dictionary with
 predefined behaviour. Also each item's dimensions are an instance of
 ``hyperpack.structures.Dimensions`` class.
 

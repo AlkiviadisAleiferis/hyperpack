@@ -175,7 +175,9 @@ def test_called_HyperSearchProcess_non_exhaustive(HyperSearchProcess_mock):
 
     settings = {"max_time_in_seconds": 1, "workers_num": 2, "figure": {"show": False}}
     containers = {"c_a": {"W": 1, "L": 1}}
-    prob = HyperPack(containers=containers, items={"a": {"w": 2, "l": 2}}, settings=settings)
+    prob = HyperPack(
+        containers=containers, items={"a": {"w": 2, "l": 2}}, settings=settings
+    )
     settings = deepcopy(prob.settings)
     conts = prob.containers.deepcopy()
     items = prob.items.deepcopy()
@@ -188,7 +190,9 @@ def test_called_HyperSearchProcess_non_exhaustive(HyperSearchProcess_mock):
     assert kwargs["containers"] == prob._containers
     assert kwargs["items"] == prob.items
     assert kwargs["settings"] == prob._settings
-    assert kwargs["strategies_chunk"] == (constants.DEFAULT_POTENTIAL_POINTS_STRATEGY_POOL[1],)
+    assert kwargs["strategies_chunk"] == (
+        constants.DEFAULT_POTENTIAL_POINTS_STRATEGY_POOL[1],
+    )
     assert kwargs["name"] == f"hypersearch_{1}"
     assert kwargs["start_time"] == prob.start_time
     assert kwargs["throttle"] == True
@@ -208,7 +212,9 @@ def test_called_HyperSearchProcess_exhaustive(HyperSearchProcess_mock):
 
     settings = {"max_time_in_seconds": 1, "workers_num": 2, "figure": {"show": False}}
     containers = {"c_a": {"W": 1, "L": 1}}
-    prob = HyperPack(containers=containers, items={"a": {"w": 2, "l": 2}}, settings=settings)
+    prob = HyperPack(
+        containers=containers, items={"a": {"w": 2, "l": 2}}, settings=settings
+    )
     settings = deepcopy(prob.settings)
     conts = prob.containers.deepcopy()
     items = prob.items.deepcopy()

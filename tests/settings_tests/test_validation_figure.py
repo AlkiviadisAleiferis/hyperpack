@@ -122,7 +122,11 @@ LIB_PATH = os.getcwd()
             SettingsError.FIGURE_EXPORT_FORMAT_TYPE,
         ),
         (
-            {"figure": {"export": {"type": "image", "path": LIB_PATH, "format": "unknown"}}},
+            {
+                "figure": {
+                    "export": {"type": "image", "path": LIB_PATH, "format": "unknown"}
+                }
+            },
             SettingsError.FIGURE_EXPORT_FORMAT_VALUE,
         ),
         # export --> file_name

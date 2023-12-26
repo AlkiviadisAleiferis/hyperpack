@@ -56,7 +56,9 @@ def gen_tests_graphs(point):
     success_tests_data, prohibited_tests_data = rip_off_test_data(point)
 
     settings = copy.deepcopy(GEN_SETTINGS)
-    export_path_success = LIB_PATH / "tests" / "tests_graphs" / f"point_{point}" / "success"
+    export_path_success = (
+        LIB_PATH / "tests" / "tests_graphs" / f"point_{point}" / "success"
+    )
     export_path_prohibited = (
         LIB_PATH / "tests" / "tests_graphs" / f"point_{point}" / "prohibited"
     )

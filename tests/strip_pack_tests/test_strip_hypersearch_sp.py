@@ -12,15 +12,17 @@ STRIP_PACK_CONT_ID = HyperPack.STRIP_PACK_CONT_ID
 def test_container_min_height_None(caplog):
     strip_pack_width = C3.containers["container_0"]["W"]
     settings = {"max_time_in_seconds": 1}
-    prob = HyperPack(items=C3.items_a, strip_pack_width=strip_pack_width, settings=settings)
+    prob = HyperPack(
+        items=C3.items_a, strip_pack_width=strip_pack_width, settings=settings
+    )
 
     # ALL TIMES IN SOLUTION TEST
     # container_min_height is None -> all the items must be in every solution
     prob.hypersearch()
-    assert prob._get_container_height() < (strip_pack_width * prob.MAX_W_L_RATIO)
+    assert prob._containers._get_height() < (strip_pack_width * prob.MAX_W_L_RATIO)
     solution = prob.solution[STRIP_PACK_CONT_ID]
     height = max([solution[item_id][1] + solution[item_id][3] for item_id in solution])
-    assert prob._get_container_height() == height
+    assert prob._containers._get_height() == height
     assert len(C3.items_a) == len(prob.solution[STRIP_PACK_CONT_ID])
 
     # NO SOLUTION ACCEPTANCE TEST
@@ -41,14 +43,16 @@ def test_container_min_height_None(caplog):
     prob.hypersearch(_exhaustive=False)
     assert prob.container_height == 28
     # value set at local_search last node
-    assert prob._get_container_height() == 28
+    assert prob._containers._get_height() == 28
     assert prob.solution in (solution0, solution1)
 
 
 def test_container_min_height_not_None():
     strip_pack_width = C3.containers["container_0"]["W"]
     settings = {"max_time_in_seconds": 1}
-    prob = HyperPack(items=C3.items_a, strip_pack_width=strip_pack_width, settings=settings)
+    prob = HyperPack(
+        items=C3.items_a, strip_pack_width=strip_pack_width, settings=settings
+    )
 
     # container_height LIMIT + ALL ITEMS IN SOLUTION TEST
     # container_min_height == 50 -> not all the items must be in every solution
@@ -56,7 +60,7 @@ def test_container_min_height_not_None():
     prob.hypersearch(_exhaustive=False)
     assert prob.container_height == 50
     # value set at local_search last node
-    assert prob._get_container_height() == 50
+    assert prob._containers._get_height() == 50
     assert len(C3.items_a) == len(prob.solution[STRIP_PACK_CONT_ID])
 
 

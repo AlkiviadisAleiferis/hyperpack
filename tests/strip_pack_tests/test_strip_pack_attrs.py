@@ -148,27 +148,28 @@ def test_solving_attrs(test_data, caplog):
     prob.container_min_height = 10
     assert prob._strip_pack == True
     assert (
-        prob._get_container_height(STRIP_PACK_CONT_ID) == strip_pack_width * prob.MAX_W_L_RATIO
+        prob._containers._get_height(STRIP_PACK_CONT_ID)
+        == strip_pack_width * prob.MAX_W_L_RATIO
     )
 
     prob.solve()
     assert prob._strip_pack == True
     assert prob.container_height == 11
     assert prob.container_min_height == 10
-    assert prob._get_container_height() == 10
+    assert prob._containers._get_height() == 10
 
     prob.local_search()
     # no new best solution was found
     assert prob._strip_pack == True
     assert prob.container_height == 11
     assert prob.container_min_height == 10
-    assert prob._get_container_height() == 10
+    assert prob._containers._get_height() == 10
 
     prob.hypersearch()
     assert prob._strip_pack == True
     assert prob.container_height == 11
     assert prob.container_min_height == 10
-    assert prob._get_container_height() == 10
+    assert prob._containers._get_height() == 10
 
     prob.settings = {"workers_num": 2}
     # validate_settings was run
@@ -180,7 +181,7 @@ def test_solving_attrs(test_data, caplog):
     assert prob._strip_pack == True
     assert prob.container_height == 11
     assert prob.container_min_height == 10
-    assert prob._get_container_height() == 10
+    assert prob._containers._get_height() == 10
 
 
 # % -------------- NOT strip-pack solving attrs unchanged --------------------- %
@@ -188,25 +189,25 @@ def test_NOT_strip_pack_container_solving_attrs(test_data):
     prob = HyperPack(**test_data)
     cont_id = "cont_id"
     L = test_data["containers"][cont_id]["L"]
-    assert prob._get_container_height(cont_id) == L
+    assert prob._containers._get_height(cont_id) == L
 
     prob.solve()
     assert prob._strip_pack == False
     assert prob.container_height == None
     assert prob.container_min_height == None
-    assert prob._get_container_height(cont_id) == L
+    assert prob._containers._get_height(cont_id) == L
 
     prob.local_search()
     assert prob._strip_pack == False
     assert prob.container_height == None
     assert prob.container_min_height == None
-    assert prob._get_container_height(cont_id) == L
+    assert prob._containers._get_height(cont_id) == L
 
     prob.hypersearch()
     assert prob._strip_pack == False
     assert prob.container_height == None
     assert prob.container_min_height == None
-    assert prob._get_container_height(cont_id) == L
+    assert prob._containers._get_height(cont_id) == L
 
     prob.settings = {"workers_num": 2}
     # validate_settings was run
@@ -216,4 +217,4 @@ def test_NOT_strip_pack_container_solving_attrs(test_data):
     assert prob._strip_pack == False
     assert prob.container_height == None
     assert prob.container_min_height == None
-    assert prob._get_container_height(cont_id) == L
+    assert prob._containers._get_height(cont_id) == L

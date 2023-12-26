@@ -10,6 +10,7 @@ from .exceptions import (
 )
 from .heuristics import HyperPack, HyperSearchProcess, PointGenPack
 from .structures import Containers, Dimensions, Items
+from .utils import generate_problem_data
 
 __all__ = [
     "HyperPack",
@@ -26,5 +27,5 @@ __all__ = [
     "Items",
 ]
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __author__ = "Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"

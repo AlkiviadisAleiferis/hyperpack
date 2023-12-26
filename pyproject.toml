@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hyperpack"
-version = "1.1.0"
+version = "1.2.0"
 description = "A hyper-heuristic approach on solving the 2D bin packing problem"
 authors = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]
 maintainers = ["Alkiviadis Aleiferis <alkiviadis.aliferis@gmail.com>"]
@@ -61,7 +61,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 95
+line-length = 90
 exclude = '''
 /(
     \.git
@@ -77,7 +77,7 @@ exclude = '''
 '''
 
 [tool.ruff]
-line-length = 95
+line-length = 90
 exclude = [
     ".bzr",
     ".direnv",
