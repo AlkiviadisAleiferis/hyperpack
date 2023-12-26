@@ -11,6 +11,8 @@ from .processes import HyperSearchProcess
 from .exceptions import (
     ContainersError,
     MultiProcessError,
+    PotentialPointsError,
+    ItemsError,
     SettingsError,
     DimensionsError,
 )
@@ -20,7 +22,7 @@ from .structures import Containers, Items
 ITEMS_COLORS = constants.ITEMS_COLORS
 
 
-class BasePackingProblem(mixins.StructuresPropertiesMixin):
+class BasePackingProblem:
     """
     Base class for initializing/managing
     the base packing problem instance.
@@ -102,11 +104,81 @@ class BasePackingProblem(mixins.StructuresPropertiesMixin):
         else:
             return
 
+    @property
+    def items(self):
+        return self._items
+
+    @items.setter
+    def items(self, value):
+        self._items = Items(value, self)
+
+    @items.deleter
+    def items(self):
+        raise ItemsError(ItemsError.CANT_DELETE)
+
+    # % -----------------------------
+
+    @property
+    def containers(self):
+        return self._containers
+
+    @containers.setter
+    def containers(self, value):
+        if self._strip_pack:
+            raise ContainersError(ContainersError.STRIP_PACK_ONLY)
+        self._containers = Containers(value, self)
+        self._containers_num = len(value)
+
+    @containers.deleter
+    def containers(self):
+        raise ContainersError(ContainersError.CANT_DELETE)
+
+    # % -----------------------------
+
+    @property
+    def container_height(self):
+        return self._container_height
+
+    @container_height.setter
+    def container_height(self, value):
+        if not isinstance(value, int) or value < 1:
+            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
+
+        if self._container_min_height is not None:
+            if value < self._container_min_height:
+                raise ContainersError(ContainersError.STRIP_PACK_MIN_HEIGHT)
+
+        self._container_height = value
+
+    @container_height.deleter
+    def container_height(self):
+        raise DimensionsError(DimensionsError.CANT_DELETE)
+
+    # % -----------------------------
+
+    @property
+    def container_min_height(self):
+        return self._container_min_height
+
+    @container_min_height.setter
+    def container_min_height(self, value):
+        if not isinstance(value, int) or value < 1:
+            raise DimensionsError(DimensionsError.DIMENSION_VALUE)
+
+        if value > self._container_height:
+            raise ContainersError(ContainersError.STRIP_PACK_MIN_HEIGHT)
+
+        self._container_min_height = value
+
+    @container_min_height.deleter
+    def container_min_height(self):
+        raise DimensionsError(DimensionsError.CANT_DELETE)
+
 
 class PointGenerationSolver(
     BasePackingProblem,
-    mixins.SolverPropertiesMixin,
     mixins.PointGenerationMixin,
+    mixins.SolutionLoggingMixin,
 ):
     """
     Class that implements the
@@ -160,14 +232,12 @@ class PointGenerationSolver(
 
         # % ----------------------------------------------------------------------------
         # SETTINGS FORMAT VALIDATION
-        # % ----------------------------------------------------------------------------
         settings = self._settings
         if not isinstance(settings, dict):
             raise SettingsError(SettingsError.TYPE)
 
         # % ----------------------------------------------------------------------------
         # IF NO SETTINGS PROVIDED, SET DEFAULT VALUES FOR THESE ATTRIBUTES
-        # % ----------------------------------------------------------------------------
         if not settings:
             # if no settings are provided, use DEFAULT values for these attributes
             self._rotation = self.ROTATION_DEFAULT_VALUE
@@ -175,7 +245,6 @@ class PointGenerationSolver(
 
         # % ----------------------------------------------------------------------------
         # SETTINGS ROTATION
-        # % ----------------------------------------------------------------------------
         rotation = settings.get("rotation")
         if rotation is not None:
             if not isinstance(rotation, bool):
@@ -195,6 +264,48 @@ class PointGenerationSolver(
         self.solution, self.obj_val_per_container = self._solve(
             sequence=sequence, debug=debug
         )
+
+    @property
+    def settings(self):
+        return self._settings
+
+    @settings.setter
+    def settings(self, value):
+        self._settings = value
+        self.validate_settings()
+
+    @settings.deleter
+    def settings(self):
+        raise SettingsError(SettingsError.CANT_DELETE_SETTINGS)
+
+    # % -----------------------------
+
+    @property
+    def potential_points_strategy(self):
+        return self._potential_points_strategy
+
+    @potential_points_strategy.setter
+    def potential_points_strategy(self, value):
+        if not isinstance(value, tuple):
+            raise PotentialPointsError(PotentialPointsError.TYPE)
+
+        checked_elements = set()
+        for el in value:
+            if not isinstance(el, str):
+                raise PotentialPointsError(PotentialPointsError.ELEMENT_TYPE)
+
+            if el not in self.DEFAULT_POTENTIAL_POINTS_STRATEGY:
+                raise PotentialPointsError(PotentialPointsError.ELEMENT_NOT_POINT)
+
+            if el in checked_elements:
+                raise PotentialPointsError(PotentialPointsError.DUPLICATE_POINTS)
+            checked_elements.add(el)
+
+        self._potential_points_strategy = value
+
+    @potential_points_strategy.deleter
+    def potential_points_strategy(self):
+        raise PotentialPointsError(PotentialPointsError.DELETE)
 
 
 class PointGenPack(
