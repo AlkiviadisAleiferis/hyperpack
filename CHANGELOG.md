@@ -7,7 +7,7 @@ with advance notice in the Deprecations section of releases.
 
 ---------------------------
 
-# [1.2.0] - CHECK DATE BEFORE PUBLISHING
+# [1.2.0] - 2023-12-26
 
 ### Changes
 Inner structure changes have been implemented for maximum scalability and maintainability.
