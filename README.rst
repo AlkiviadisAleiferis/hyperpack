@@ -13,6 +13,15 @@
 
 .. image:: https://img.shields.io/badge/pypi-v1.2.0-blue.svg
 
+.. image:: https://static.pepy.tech/badge/hyperpack
+
+.. image:: https://static.pepy.tech/badge/hyperpack/month
+
+-----------------------------------
+
+**Hyperpack is the first open-source 2D-Binpacking problem solver and optimizer in Python, based on my personally developed heuristics.
+If you are curious on the heuristics or the python implementation, please contact me.**
+
 Problem description
 -------------------
 
