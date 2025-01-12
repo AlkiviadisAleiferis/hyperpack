@@ -445,9 +445,10 @@ class PointGenerationMixin:
     def _get_initial_point(self, potential_points, **kwargs):
         return potential_points["O"], "O"
 
-    def calculate_objective_value(self, obj_value, w, l, W, L, Xo, Yo, horizontals, verticals, container_coords):
+    def calculate_objective_value(
+        self, obj_value, w, l, W, L, Xo, Yo, horizontals, verticals, container_coords
+    ):
         return obj_value + (w * l) / (W * L)
-
 
     def _construct_solution(self, cont_id, container, items, debug=False) -> tuple:
         """
@@ -475,7 +476,7 @@ class PointGenerationMixin:
         L = self._get_initial_container_length(container)
         W = container["W"]
 
-        total_surface = W * L
+        W * L
         # obj_value is the container utilization
         # obj_value = Area(Placed Items)/Area(Container)
         obj_value = self.init_obj_value
@@ -538,15 +539,15 @@ class PointGenerationMixin:
 
                 if not strip_pack:
                     obj_value = self.calculate_objective_value(
-                        obj_value, 
-                        w, 
-                        l, 
-                        W, 
-                        L, 
-                        Xo, 
-                        Yo, 
-                        horizontals, 
-                        verticals, 
+                        obj_value,
+                        w,
+                        l,
+                        W,
+                        L,
+                        Xo,
+                        Yo,
+                        horizontals,
+                        verticals,
                         container_coords,
                     )
 
@@ -578,7 +579,9 @@ class PointGenerationMixin:
 
         if strip_pack:
             height_of_solution = max(set(horizontals)) or 1
-            items_area = sum([item["w"]*item["l"] for _, item in current_solution.items()])
+            items_area = sum(
+                [item["w"] * item["l"] for _, item in current_solution.items()]
+            )
             obj_value = items_area / (W * height_of_solution)
 
         return items, obj_value, current_solution
@@ -592,9 +595,9 @@ class PointGenerationMixin:
         for _id in current_solution:
             item = current_solution[_id]
             solution[_id] = [
-                item["Xo"], 
-                item["Yo"], 
-                item["w"] if not item["rotated"] else item["l"], 
+                item["Xo"],
+                item["Yo"],
+                item["w"] if not item["rotated"] else item["l"],
                 item["l"] if not item["rotated"] else item["w"],
             ]
         return solution
