@@ -56,9 +56,23 @@ class PointGenerationMixin:
         "F": deque(),
     }
 
+    max_obj_value = 1
+    init_obj_value = 0
+
     # % --------- construction heuristic methods ----------
 
     def _check_fitting(self, W, L, Xo, Yo, w, l, container_coords) -> bool:
+        """
+        Checks if all the coordinates of the item
+        are not taken in `container_coords`.
+        `container_coords` : [
+            [int, int, ... W elements], # y-th coordinate
+            .
+            .
+            .
+            L lists, 1 for each coordinate
+        ]
+        """
         if (
             Xo + w > W
             or Yo + l > L
@@ -428,6 +442,13 @@ class PointGenerationMixin:
             ],
         }
 
+    def _get_initial_point(self, potential_points, **kwargs):
+        return potential_points["O"], "O"
+
+    def calculate_objective_value(self, obj_value, w, l, W, L, Xo, Yo, horizontals, verticals, container_coords):
+        return obj_value + (w * l) / (W * L)
+
+
     def _construct_solution(self, cont_id, container, items, debug=False) -> tuple:
         """
         Point generation construction heuristic
@@ -457,10 +478,14 @@ class PointGenerationMixin:
         total_surface = W * L
         # obj_value is the container utilization
         # obj_value = Area(Placed Items)/Area(Container)
-        obj_value = 0
+        obj_value = self.init_obj_value
         items_area = 0
-        max_obj_value = 1
+        max_obj_value = self.max_obj_value
 
+        # a list where each element
+        # depicts a y coordinate
+        # and each element is a list
+        # of every x coordinate
         container_coords = [array("I", [0] * W) for y in range(L)]
 
         horizontals = self._get_initial_horizontal_segments(W)
@@ -469,7 +494,7 @@ class PointGenerationMixin:
         potential_points = self._get_initial_potential_points()
 
         # O(0, 0) init point
-        current_point, point_class = potential_points["O"], "O"
+        current_point, point_class = self._get_initial_point(potential_points)
 
         # START of item placement process
         while True:
@@ -502,6 +527,8 @@ class PointGenerationMixin:
                     logger.debug(f"--> {item_id}\n")
 
                 # add item to container
+                # actually setting as 1 all the container's
+                # coordinates that are taken by the item
                 for y in range(Yo, Yo + l):
                     container_coords[y][Xo : Xo + w] = array("I", [1] * w)
 
@@ -509,8 +536,19 @@ class PointGenerationMixin:
                 items_ids.remove(item_id)
                 del items[item_id]
 
-                items_area += w * l
-                obj_value += w * l / total_surface
+                if not strip_pack:
+                    obj_value = self.calculate_objective_value(
+                        obj_value, 
+                        w, 
+                        l, 
+                        W, 
+                        L, 
+                        Xo, 
+                        Yo, 
+                        horizontals, 
+                        verticals, 
+                        container_coords,
+                    )
 
                 item.update({"Xo": Xo, "Yo": Yo, "rotated": rotated})
                 current_solution[item_id] = item
@@ -540,6 +578,7 @@ class PointGenerationMixin:
 
         if strip_pack:
             height_of_solution = max(set(horizontals)) or 1
+            items_area = sum([item["w"]*item["l"] for _, item in current_solution.items()])
             obj_value = items_area / (W * height_of_solution)
 
         return items, obj_value, current_solution
@@ -551,13 +590,13 @@ class PointGenerationMixin:
         """
         solution = {}
         for _id in current_solution:
-            l = current_solution[_id]["l"]
-            w = current_solution[_id]["w"]
-            Xo = current_solution[_id]["Xo"]
-            Yo = current_solution[_id]["Yo"]
-            if current_solution[_id]["rotated"]:
-                l, w = w, l
-            solution[_id] = [Xo, Yo, w, l]
+            item = current_solution[_id]
+            solution[_id] = [
+                item["Xo"], 
+                item["Yo"], 
+                item["w"] if not item["rotated"] else item["l"], 
+                item["l"] if not item["rotated"] else item["w"],
+            ]
         return solution
 
     def _solve(self, sequence=None, debug=False) -> None:

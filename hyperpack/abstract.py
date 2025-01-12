@@ -108,8 +108,8 @@ class AbstractLocalSearch(ABC):
         node_num = 0
         seq_length = len(node_sequence)
 
-        # swaps is the list of all possible two-tuples
-        # each containing the 2-opt index swap of
+        # swaps is the list of all possible two(N)-tuples
+        # each containing the 2(N)-opt index swap of
         # the sequence list
         index_swaps = list(combinations(range(seq_length), self.OPT_NUM))
 
@@ -148,6 +148,7 @@ class AbstractLocalSearch(ABC):
 
                 processed_neighbors += 1
 
+                # returns `True` if new node has better objective value
                 if self.compare_node(new_obj_value, best_obj_value):
                     # set new node
                     node_sequence = [el for el in current_sequence]
