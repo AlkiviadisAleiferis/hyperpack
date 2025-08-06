@@ -5,9 +5,11 @@ import json
 DEFAULT_CONTAINERS_NUM = 1
 DEFAULT_MEAN_CONTAINER_WIDTH = 50
 DEFAULT_MEAN_CONTAINER_LENGTH = 50
+DEFAULT_MEAN_CONTAINER_HEIGHT = 50
 DEFAULT_ITEMS_NUM = 30
 DEFAULT_MEAN_ITEM_WIDTH = 5
 DEFAULT_MEAN_ITEM_LENGTH = 3
+DEFAULT_MEAN_ITEM_HEIGHT = 2
 
 
 def generate_problem_data(**kwargs):
@@ -26,48 +28,62 @@ def generate_problem_data(**kwargs):
     containers_num = kwargs.get("containers_num", DEFAULT_CONTAINERS_NUM)
     container_length = kwargs.get("containers_length", DEFAULT_MEAN_CONTAINER_LENGTH)
     container_width = kwargs.get("containers_width", DEFAULT_MEAN_CONTAINER_WIDTH)
+    container_height = kwargs.get("containers_height", DEFAULT_MEAN_CONTAINER_HEIGHT)
 
     deviation_W_val = round(container_width * 0.1)
-    deviation_H_val = round(container_length * 0.1)
+    deviation_L_val = round(container_length * 0.1)
+    deviation_H_val = round(container_height * 0.1)
 
     lower_W_val, upper_W_val = (
         container_width - deviation_W_val,
         container_width + deviation_W_val,
     )
+    lower_L_val, upper_L_val = (
+        container_length - deviation_L_val,
+        container_length + deviation_L_val,
+    )
     lower_H_val, upper_H_val = (
-        container_length - deviation_H_val,
-        container_length + deviation_H_val,
+        container_height - deviation_H_val,
+        container_height + deviation_H_val,
     )
 
     containers = {}
     for cont_num in range(containers_num):
         containers[f"container-{cont_num}"] = {
             "W": random.randint(lower_W_val, upper_W_val),
-            "L": random.randint(lower_H_val, upper_H_val),
+            "L": random.randint(lower_L_val, upper_L_val),
+            "H": random.randint(lower_H_val, upper_H_val)
         }
 
     # ---------------------- ITEMS ------------------------
     items_num = kwargs.get("items_num", DEFAULT_ITEMS_NUM)
     items_length = kwargs.get("items_length", DEFAULT_MEAN_ITEM_LENGTH)
     items_width = kwargs.get("items_width", DEFAULT_MEAN_ITEM_WIDTH)
+    items_height = kwargs.get("items_height", DEFAULT_MEAN_ITEM_HEIGHT)
 
-    deviation_w_val = max(round(items_length * 0.6), 1)
-    deviation_h_val = max(round(items_width * 0.6), 1)
+    deviation_w_val = max(round(items_width * 0.6), 1)
+    deviation_l_val = max(round(items_length * 0.6), 1)
+    deviation_h_val = max(round(items_height * 0.6), 1)
 
     lower_w_val, upper_w_val = (
         items_width - deviation_w_val,
         items_width + deviation_w_val,
     )
+    lower_l_val, upper_l_val = (
+        items_length - deviation_l_val,
+        items_length + deviation_l_val,
+    )
     lower_h_val, upper_h_val = (
-        items_width - deviation_h_val,
-        items_width + deviation_h_val,
+        items_height - deviation_h_val,
+        items_height + deviation_h_val,
     )
     items = {}
     total_items_num = items_num * containers_num
     for item_num in range(total_items_num):
         items[f"item-{item_num}"] = {
             "w": random.randint(lower_w_val, upper_w_val),
-            "l": random.randint(lower_h_val, upper_h_val),
+            "l": random.randint(lower_l_val, upper_l_val),
+            "h": random.randint(lower_h_val, upper_h_val)
         }
 
     print("Containers number = ", containers_num)

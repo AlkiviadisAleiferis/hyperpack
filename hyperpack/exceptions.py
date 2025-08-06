@@ -106,8 +106,8 @@ class SettingsError(ErrorLoggingException):
 class DimensionsError(ErrorLoggingException):
     DIMENSIONS_MISSING = "dimensions are missing."
     DIMENSIONS_TYPE = "dimensions must be of type dict."
-    DIMENSIONS_KEYS = "dimensions must (only) contain Width and Length keys."
-    DIMENSION_VALUE = "Width and Length must be positive integers."
+    DIMENSIONS_KEYS = "dimensions must (only) contain Width, Length, and Height keys."
+    DIMENSION_VALUE = "Width, Length, and Height must be positive integers."
     # mostly inner workings exception
     DIMENSIONS_REFERENCE_OBJECT = (
         "Neither container or item reference structure provided."

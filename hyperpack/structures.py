@@ -42,7 +42,8 @@ class Dimensions(UserDict):
     def __init__(self, dimensions=None, reference_structure=None, instance=None):
         # dimensions = {
         #   "w or W": int,
-        #   "l or W": int
+        #   "l or L": int,
+        #   "h or H": int
         # }
 
         # it is propagated from Structure. Problem instance
@@ -76,7 +77,7 @@ class Dimensions(UserDict):
 
     def validate_data(self, key, item):
         """
-        key must be "W" or "L" / "w" or "l".
+        key must be "W", "L", "H / "w", "l", "h".
         value must be positive number.
         """
         if key not in self.proper_keys:
@@ -205,7 +206,7 @@ class Containers(AbstractStructureSet):
     of the HyperPack class, by proper subclassing of AbstractStructureSet.
     """
 
-    PROPER_DIMENSIONS_KEYS = ("W", "L")
+    PROPER_DIMENSIONS_KEYS = ("W", "L", "H")
     ERROR_CLASS = ContainersError
 
     def __init__(self, containers=None, instance=None):
@@ -282,6 +283,7 @@ class Containers(AbstractStructureSet):
         class_name = "Containers"
         width_key = self.PROPER_DIMENSIONS_KEYS[0]
         length_key = self.PROPER_DIMENSIONS_KEYS[1]
+        height_key = self.PROPER_DIMENSIONS_KEYS[2]
 
         strings_list.append(class_name)
         for structure_id in self.data:
@@ -304,7 +306,7 @@ class Items(AbstractStructureSet):
     of the HyperPack class, by proper subclassing of AbstractStructureSet.
     """
 
-    PROPER_DIMENSIONS_KEYS = ("w", "l")
+    PROPER_DIMENSIONS_KEYS = ("w", "l", "h")
     ERROR_CLASS = ItemsError
 
     def __init__(self, items=None, instance=None):
@@ -315,6 +317,7 @@ class Items(AbstractStructureSet):
         class_name = "Items"
         width_key = self.PROPER_DIMENSIONS_KEYS[0]
         length_key = self.PROPER_DIMENSIONS_KEYS[1]
+        height_key = self.PROPER_DIMENSIONS_KEYS[2]
 
         strings_list.append(class_name)
         for structure_id in self.data:
