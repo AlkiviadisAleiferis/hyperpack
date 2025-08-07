@@ -61,6 +61,33 @@ class PointGenerationMixin:
 
     # % --------- construction heuristic methods ----------
 
+    def check_3d_fitting(self, W, L, H, Xo, Yo, Zo, w, l, h, current_items) -> bool:
+        """
+        Checks if the item with coordinates (Xo, Yo, Zo)
+        and dimensions (w, l, h) fits without colliding with any
+        of the items currently in the container (current_items).
+        """
+        # Check if the item fits within the container dimensions
+        if(Xo + w > W or Yo + l > L or Zo + h > H):
+            return False
+
+        # Check for collisions with existing items
+        for item in current_items:
+            X, Y, Z = item["Xo"], item["Yo"], item["Zo"]
+            w_, l_, h_ = item["w"], item["l"], item["h"]
+
+            if (
+                X < Xo + w
+                and X + w_ > Xo
+                and Y < Yo + l
+                and Y + l_ > Yo
+                and Z < Zo + h
+                and Z + h_ > Zo
+            ):
+                return False
+
+        return True
+
     def _check_fitting(self, W, L, Xo, Yo, w, l, container_coords) -> bool:
         """
         Checks if all the coordinates of the item
