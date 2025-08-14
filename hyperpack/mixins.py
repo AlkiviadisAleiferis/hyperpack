@@ -96,7 +96,6 @@ class PointGenerationMixin:
                 Yo + l > Y and Y + l_ > Yo and
                 Zo + h > Z and Z + h_ > Zo
             ):
-                print(f"Collision detected with item {item_id} at ({X}, {Y}, {Z})")
                 return False
 
         return True
@@ -140,6 +139,10 @@ class PointGenerationMixin:
         C = (Xo, Yo, Zo + h)
 
         L, W, H = container["L"], container["W"], container["H"]
+        append_A = False
+        append_B = False
+        prohibit_A__and_E = False
+        prohibit_B__and_F = False
 
         if A[y] < L and A[z] == 0:
             # A point on the bottom of the bin and within the bin length
@@ -149,12 +152,14 @@ class PointGenerationMixin:
         elif A[y] < L:
             # A point not on the bottom of the bin
             planes = xy_planes.get(A[z], [])
-            append_A = False
             for plane in planes:
-                if plane[0][0] <= A[x] and plane[1][0] > A[x] and plane[0][1] <= B[y] and plane[1][1] > B[y]:
+                if plane[0][0] <= A[x] and plane[1][0] > A[x] and plane[0][1] <= A[y] and plane[1][1] > A[y]:
                     # if plane directly encompasses A from below
-                    append_B = True
+                    append_A = True
                     break
+                elif not prohibit_A__and_E and plane[1][1] == A[y] and plane[0][0] <= A[x] and plane[1][0] > A[x]:
+                    # if plane's Y ends directly under A
+                    prohibit_A__and_E = True
             if append_A:
                 if debug:
                     logger.debug(f"\tgen point A --> {A}")
@@ -168,16 +173,42 @@ class PointGenerationMixin:
         elif B[x] < W:
             # B point not on the bottom of the bin
             planes = xy_planes.get(B[z], [])
-            append_B = False
             for plane in planes:
-                if plane[0][0] <= B[x] and plane[1][0] > B[x] and plane[0][1] <= A[y] and plane[1][1] > A[y]:
-                    # if plane directly encompasses A from below
-                    append_A = True
+                if plane[0][0] <= B[x] and plane[1][0] > B[x] and plane[0][1] <= B[y] and plane[1][1] > B[y]:
+                    # if plane directly encompasses B from below
+                    append_B = True
                     break
+                elif not prohibit_B__and_F and plane[1][0] == B[x] and plane[0][1] <= B[y] and plane[1][1] > B[y]:
+                    # if plane's X ends directly under B
+                    prohibit_B__and_F = True
             if append_B:
                 if debug:
                     logger.debug(f"\tgen point B --> {B}")
                 potential_points["B"].append(B)
+
+        xy_below = [z for z in xy_planes if z < Zo]
+        if not append_A and not prohibit_A__and_E and A[y] < L and xy_below != []:
+            # A' point
+            for z in xy_below[-1::-1]:
+                planes = xy_planes.get(z, [])
+                for plane in planes:
+                    if plane[0][0] <= A[x] and plane[1][0] > A[x] and plane[0][1] <= A[y] and plane[1][1] > A[y]:
+                        A_ = (Xo, Yo, z)
+                        if debug:
+                            logger.debug(f"\tgen point A' --> {A_}")
+                        potential_points["A_"].append(A_)
+                        break
+        if not append_B and not prohibit_B__and_F and B[x] < W and xy_below != []:
+            # B' point
+            for z in xy_below[-1::-1]:
+                planes = xy_planes.get(z, [])
+                for plane in planes:
+                    if plane[0][0] <= B[x] and plane[1][0] > B[x] and plane[0][1] <= B[y] and plane[1][1] > B[y]:
+                        B_ = (B[x], Yo, z)
+                        if debug:
+                            logger.debug(f"\tgen point B' --> {B_}")
+                        potential_points["B_"].append(B_)
+                        break
 
         if C[z] < H:
             if debug:
@@ -641,6 +672,7 @@ class PointGenerationMixin:
             # CURRENT POINT'S ITEM SEARCH
             # get first fitting in sequence
             for item_id in items_ids:
+                logger.debug(f"\nItem {item_id}")
                 item = items[item_id]
                 w, l, h, rotation_orientation = item["w"], item["l"], item["h"], 0
 
@@ -1187,7 +1219,7 @@ class ItemsManipulationMixin:
             elif orientation == "long" and l < w:
                 items[_id]["w"], items[_id]["l"] = l, w
 
-    def sort_items(self, sorting_by: tuple or None = ("area", True)) -> None:
+    def sort_items(self, sorting_by: tuple or None = ("volume", True)) -> None:
         """
         Method for ordering the ``items`` structure. See :ref:`here<sort_items>` for
         detailed explanation of the method.
@@ -1215,15 +1247,15 @@ class ItemsManipulationMixin:
 
         items = self._items.deepcopy()
 
-        if by == "area":
-            sorted_items = [[i["w"] * i["l"], _id] for _id, i in items.items()]
+        if by == "volume":
+            sorted_items = [[i["w"] * i["l"] * i["h"], _id] for _id, i in items.items()]
             sorted_items.sort(reverse=reverse)
-        elif by == "perimeter":
-            sorted_items = [[i["w"] * 2 + i["l"] * 2, _id] for _id, i in items.items()]
+        elif by == "surface_area":
+            sorted_items = [[2 * i["w"] * i["l"] + 2 * i["w"] * i["h"] + 2 * i["l"] * i["h"], _id] for _id, i in items.items()]
             sorted_items.sort(reverse=reverse)
         elif by == "longest_side_ratio":
             sorted_items = [
-                [max(i["w"], i["l"]) / min(i["w"], i["l"]), _id]
+                [max(i["w"], i["l"], i["h"]) / min(i["w"], i["l"], i["h"]), _id]
                 for _id, i in items.items()
             ]
             sorted_items.sort(reverse=reverse)
