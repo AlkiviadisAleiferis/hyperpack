@@ -77,14 +77,26 @@ class PointGenerationMixin:
             X, Y, Z = item["Xo"], item["Yo"], item["Zo"]
             w_, l_, h_ = item["w"], item["l"], item["h"]
 
+            if item['rotation_state']:
+                match item['rotation_state']:
+                    case 1:  # rotate 90 degrees without changing base
+                        w_, l_, h_ = l_, w_, h_
+                    case 2: # change base to w x h
+                        w_, l_, h_ = w_, h_, l_
+                    case 3: # w x h base + rotate 90 degrees
+                        w_, l_, h_ = h_, w_, l_
+                    case 4: # change base to l x h
+                        w_, l_, h_ = l_, h_, w_
+                    case 5: # l x h base + rotate 90 degrees
+                        w_, l_, h_ = h_, l_, w_
+                    case _:
+                        pass
             if (
-                X < Xo + w
-                and X + w_ > Xo
-                and Y < Yo + l
-                and Y + l_ > Yo
-                and Z < Zo + h
-                and Z + h_ > Zo
+                Xo + w > X and X + w_ > Xo and
+                Yo + l > Y and Y + l_ > Yo and
+                Zo + h > Z and Z + h_ > Zo
             ):
+                print(f"Collision detected with item {item_id} at ({X}, {Y}, {Z})")
                 return False
 
         return True
@@ -526,10 +538,10 @@ class PointGenerationMixin:
     #         horizontals[Yo + l] = [((Xo, Ay), (Bx, Ay))]
 
     def _get_initial_container_height(self, container):
-        # if self._strip_pack:
-        #     return self._container_height
-        # else:
-        return container["H"]
+        if self._strip_pack:
+            return self._container_height
+        else:
+            return container["H"]
 
     def _get_initial_potential_points(self):
         return {
@@ -691,7 +703,7 @@ class PointGenerationMixin:
                     w,
                     l,
                     h,
-                    debug,
+                    debug=True,
                 )
 
                 self._append_planes(xy_planes, xz_planes, yz_planes, Xo, Yo, Zo, w, l, h)
