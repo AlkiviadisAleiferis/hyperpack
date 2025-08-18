@@ -1,42 +1,77 @@
+from hyperpack import HyperPack
 from hyperpack.mixins import PointGenerationMixin
+import logging
+import random
+logging.basicConfig(level=logging.DEBUG)
+
+# W = random.randint(50, 70)
+# L = random.randint(50, 70)
+# H = random.randint(50, 70)
+
+W = 50
+L = 50
+H = 50
 
 items = {
-    "item1": {
-        'w': 10,
-        'l': 20,
-        'h': 30,
-    },
-    "item2": {
-        'w': 15,
-        'l': 25,
-        'h': 15,
-    },
-    "item3": {
-        'w': 5,
-        'l': 5,
-        'h': 5,
-    },
+    # "item1": {
+    #     "w": 10,
+    #     "l": 15,
+    #     "h": 10
+    # },
+    # "item2": {
+    #     "w": 5,
+    #     "l": 8,
+    #     "h": 10
+    # },
+    # "item3": {
+    #     "w": 20,
+    #     "l": 10,
+    #     "h": 6
+    # },
+    # "item4": {
+    #     "w": 8,
+    #     "l": 10,
+    #     "h": 15
+    # },
+    # "item5": {
+    #     "w": 10,
+    #     "l": 10,
+    #     "h": 12
+    # },
+    # "item6": {
+    #     "w": 20,
+    #     "l": 10,
+    #     "h": 10
+    # },
+    # "item7": {
+    #     "w": 20,
+    #     "l": 12,
+    #     "h": 10
+    # },
 }
-container = {
-    'W': 15,
-    'L': 20,
-    'H': 55
-}
-
-point_gen = PointGenerationMixin()
-point_gen._potential_points_strategy = (
-        "A",
-        "B",
-        "C",
-        "D",
-        "A_",  # A' point
-        "B_",  # B' point
-        "B__",  # B" point
-        "A__",  # A" point
-        "E",
-        "F",
+for i in range(1, 40):
+    items.update(
+        [(f"item{i}", {
+            "w": random.randint(1, 20),
+            "l": random.randint(15, 30),
+            "h": random.randint(10, 30)
+        })]
     )
-point_gen._rotation = True
-leftover, score, sol = point_gen._construct_solution(container=container, items=items)
+containers = {
+    "container1": {
+        'W': W,
+        'L': L,
+        'H': H
+    },
+    "container2": {
+        'W': 40,
+        'L': 50,
+        'H': 50
+    }
+}
 
-print(sol, score)
+if __name__ == "__main__":
+    problem = HyperPack(containers=containers, items=items)
+    problem.hypersearch()
+    print(problem.log_solution())
+    problem.create_figure(show=True)
