@@ -1002,7 +1002,7 @@ ITEMS_COLORS = (
 )
 
 DEFAULT_POTENTIAL_POINTS_STRATEGY_POOL = (
-    ("A", "D", "B_", "C", "B", "A_", "A__", "B__", "F", "E"),
-    # C3, items_a best strategy
-    ("B_", "C", "A", "A_", "B", "D", "A__", "B__", "F", "E"),
+    ("A_x", "B_y", "A", "B", "A_", "B_", "C", "C_y", "C_x", "C__"),
+    ("A_x", "A", "B_", "C_y", "C_x", "C", "B_y", "B", "A_", "C__"),
+    ("B_", "C", "A_x", "A", "A_", "B_y", "B", "C_y", "C_x", "C__"),
 )

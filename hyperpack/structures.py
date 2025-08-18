@@ -244,7 +244,7 @@ class Containers(AbstractStructureSet):
                 solution = self.instance.solution[cont_id]
                 # height of items stack in solution
                 solution_height = max(
-                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                    [solution[item_id][2] + solution[item_id][5] for item_id in solution]
                     or [0]
                 )
 
@@ -254,7 +254,7 @@ class Containers(AbstractStructureSet):
 
                 return solution_height
         else:
-            return self.data[cont_id]["L"]
+            return self.data[cont_id]["H"]
 
     def _set_height(self):
         cont_id = self.instance.STRIP_PACK_CONT_ID
@@ -266,7 +266,7 @@ class Containers(AbstractStructureSet):
             solution = self.instance.solution[cont_id]
             # height of items stack in solution
             solution_height = max(
-                [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                [solution[item_id][2] + solution[item_id][5] for item_id in solution]
                 or [0]
             )
 
@@ -289,12 +289,13 @@ class Containers(AbstractStructureSet):
         for structure_id in self.data:
             width = self.data[structure_id][width_key]
             length = self.data[structure_id][length_key]
+            height = self.data[structure_id][height_key]
 
             if self.instance._strip_pack:
-                strings_list.append(f"  - id: {structure_id}\n    width: {width}\n")
+                strings_list.append(f"  - id: {structure_id}\n    width: {width}\n  length: {length}\n")
             else:
                 strings_list.append(
-                    f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
+                    f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n    height: {height}\n"
                 )
 
         return "\n".join(strings_list)
@@ -323,8 +324,9 @@ class Items(AbstractStructureSet):
         for structure_id in self.data:
             width = self.data[structure_id][width_key]
             length = self.data[structure_id][length_key]
+            height = self.data[structure_id][height_key]
             strings_list.append(
-                f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
+                f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n    height: {height}\n"
             )
 
         return "\n".join(strings_list)

@@ -345,7 +345,7 @@ class HyperPack(
     # before accepting node as optimum
     MAX_NEIGHBORS_THROTTLE = 2500
     # Potential points strategies constant suffix
-    STRATEGIES_SUFFIX = ("A__", "B__", "F", "E")
+    STRATEGIES_SUFFIX = ("A_", "B_", "C_x", "C_y", "C__",)
     STRATEGIES_SUFFIX_STRIPACK = ("B__", "A__", "F", "E")
 
     def __init__(
@@ -460,7 +460,6 @@ class HyperPack(
         best_obj_value = self.calculate_obj_value()
         optimum_obj_value = self.get_optimum_objective_val()
         best_strategy = self.DEFAULT_POTENTIAL_POINTS_STRATEGY
-
         for strategy in strategies:
             # set the construction heuristic's potential points strategy
             self._potential_points_strategy = strategy
@@ -558,8 +557,8 @@ class HyperPack(
 
     def hypersearch(
         self,
-        orientation: str = "wide",
-        sorting_by: tuple = ("area", True),
+        orientation: str = "short",
+        sorting_by: tuple = ("volume", True),
         *,
         throttle: bool = True,
         _exhaustive: bool = True,
@@ -615,6 +614,7 @@ class HyperPack(
         # until stopping criteria are met
 
         strategies = self.get_strategies(_exhaustive=_exhaustive)
+        print(strategies[0])
 
         self.solution, self.obj_val_per_container, self.best_strategy = (
             self._single_process_hypersearch(strategies, throttle)
