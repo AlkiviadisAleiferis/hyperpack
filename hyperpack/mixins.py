@@ -16,6 +16,12 @@ from pathlib import Path
 import re
 
 
+def default_objective_value_calculator(
+    problem, w, l, W, L, Xo, Yo, horizontals, verticals, container_coords
+):
+    return (w * l) / (W * L)
+
+
 class PointGenerationMixin:
     """
     Mixin providing the point generation functionality.
@@ -58,6 +64,8 @@ class PointGenerationMixin:
 
     max_obj_value = 1
     init_obj_value = 0
+
+    calculate_objective_value = default_objective_value_calculator
 
     # % --------- construction heuristic methods ----------
 
@@ -445,11 +453,6 @@ class PointGenerationMixin:
     def _get_initial_point(self, potential_points, **kwargs):
         return potential_points["O"], "O"
 
-    def calculate_objective_value(
-        self, obj_value, w, l, W, L, Xo, Yo, horizontals, verticals, container_coords
-    ):
-        return obj_value + (w * l) / (W * L)
-
     def _construct_solution(self, cont_id, container, items, debug=False) -> tuple:
         """
         Point generation construction heuristic
@@ -513,6 +516,9 @@ class PointGenerationMixin:
                 item = items[item_id]
                 w, l, rotated = item["w"], item["l"], False
 
+                # check if item fits inside
+                # the current container state
+                # - if not continue to next item
                 check = self._check_fitting(W, L, Xo, Yo, w, l, container_coords)
                 if not check:
                     if self._rotation:
@@ -538,8 +544,7 @@ class PointGenerationMixin:
                 del items[item_id]
 
                 if not strip_pack:
-                    obj_value = self.calculate_objective_value(
-                        obj_value,
+                    obj_value = obj_value + self.calculate_objective_value(
                         w,
                         l,
                         W,
@@ -554,6 +559,9 @@ class PointGenerationMixin:
                 item.update({"Xo": Xo, "Yo": Yo, "rotated": rotated})
                 current_solution[item_id] = item
 
+                # for the new inserted item
+                # generate all new potential points
+                # and add all new linear segments of the item
                 self._generate_points(
                     container,
                     horizontals,
@@ -565,7 +573,6 @@ class PointGenerationMixin:
                     l,
                     debug,
                 )
-
                 self._append_segments(horizontals, verticals, Xo, Yo, w, l)
 
                 break
@@ -1038,14 +1045,17 @@ class ItemsManipulationMixin:
             )
             return
 
-        for _id in items:
-            w, l = items[_id]["w"], items[_id]["l"]
+        if orientation == "wide":
+            for _id in items:
+                w, l = items[_id]["w"], items[_id]["l"]
+                if l > w:
+                    items[_id]["w"], items[_id]["l"] = l, w
 
-            if orientation == "wide" and l > w:
-                items[_id]["w"], items[_id]["l"] = l, w
-
-            elif orientation == "long" and l < w:
-                items[_id]["w"], items[_id]["l"] = l, w
+        elif orientation == "long":
+            for _id in items:
+                w, l = items[_id]["w"], items[_id]["l"]
+                if l < w:
+                    items[_id]["w"], items[_id]["l"] = l, w
 
     def sort_items(self, sorting_by: tuple or None = ("area", True)) -> None:
         """

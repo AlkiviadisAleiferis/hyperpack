@@ -1,5 +1,5 @@
 """
-This module contains the COntainers, Items structures
+This module contains the Containers and Items structures
 used by PointGenPack and HyperPack
 to solve the corresponding problems.
 
