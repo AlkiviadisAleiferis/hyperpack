@@ -61,8 +61,8 @@ def test_container_min_height_None():
     assert prob.container_height == strip_pack_width * prob.MAX_W_L_RATIO
     prob.local_search(debug=True)
     assert prob.container_height < (strip_pack_width * prob.MAX_W_L_RATIO)
-    assert prob.container_height == 35
-    assert [600, 44, 41, 39, 38, 37, 36, 35] == prob._heights_history
+    assert prob.container_height == 34
+    assert [600, 38, 37, 36, 35, 34] == prob._heights_history
     # Check _get_height
     solution = prob.solution[STRIP_PACK_CONT_ID]
     height = max([solution[item_id][1] + solution[item_id][3] for item_id in solution])
@@ -93,9 +93,9 @@ def test_container_min_height_not_None():
     # container_min_height == 32 -> not all the items must be in every solution
     prob._container_min_height = 32
     prob.local_search(debug=True)
-    assert prob.container_height == 32
+    assert prob.container_height == 33
     # value set at local_search last node
-    assert prob._containers._get_height() == 32
+    assert prob._containers._get_height() == 33
     assert len(C3.items_a) > len(prob.solution[STRIP_PACK_CONT_ID])
 
     # container_min_height == 55 -> solution height is < 55
@@ -155,7 +155,7 @@ def test_log_solution():
     prob.local_search()
 
     solution_log = SOLUTION_LOG_ITEMS_STRATEGY.format(100)
-    solution_log += SOLUTION_STRING_CONTAINER.format(STRIP_PACK_CONT_ID, 60, 35, 85.7143)
+    solution_log += SOLUTION_STRING_CONTAINER.format(STRIP_PACK_CONT_ID, 60, 34, 88.2353)
     solution = prob.solution[STRIP_PACK_CONT_ID]
     # height of items stack in solution
     max_height = max(
@@ -165,6 +165,9 @@ def test_log_solution():
     solution_log += SOLUTION_STRING_REMAINING_ITEMS.format([])
     solution_log = solution_log.replace("\n", "").replace("\t", "")
 
+    solution_log_output = prob.log_solution().replace("\n", "").replace("\t", "")
+    
     print(solution_log)
-    print(prob.log_solution().replace("\n", "").replace("\t", ""))
-    assert prob.log_solution().replace("\n", "").replace("\t", "") == solution_log
+    print(solution_log_output)
+    
+    assert solution_log_output == solution_log

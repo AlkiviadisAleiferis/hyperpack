@@ -1,6 +1,6 @@
 import math
-import sys
 import time
+
 from .abstract import AbstractLocalSearch
 from .loggers import hyperLogger, logger
 from . import constants
@@ -16,9 +16,7 @@ from pathlib import Path
 import re
 
 
-def default_objective_value_calculator(
-    problem, w, l, W, L, Xo, Yo, horizontals, verticals, container_coords
-):
+def default_objective_value_calculator(problem, w, l, W, L, Xo, Yo, container_coords):
     return (w * l) / (W * L)
 
 
@@ -36,6 +34,9 @@ class PointGenerationMixin:
     """
 
     # solving constants
+    RATIO_FOR_POINT_A_ = 0.2
+    RATIO_FOR_POINT_B_ = 0.2
+
     DEFAULT_POTENTIAL_POINTS_STRATEGY = (
         "A",
         "B",
@@ -85,305 +86,227 @@ class PointGenerationMixin:
             Xo + w > W
             or Yo + l > L
             or container_coords[Yo][Xo]
-            or container_coords[Yo + l - 1][Xo]
             or container_coords[Yo][Xo + w - 1]
+            or container_coords[Yo + l - 1][Xo]
+            or container_coords[Yo + l - 1][Xo + w - 1]
         ):
             return False
 
-        for x in range(Xo, Xo + w - 1):
-            if container_coords[Yo][x]:
-                return False
         for y in range(Yo, Yo + l - 1):
-            if container_coords[y][Xo]:
+            if any(container_coords[y][Xo : Xo + w]):
                 return False
 
         return True
 
     def _generate_points(
-        self, container, horizontals, verticals, potential_points, Xo, Yo, w, l, debug
+        self,
+        container_coords,
+        container_width,
+        container_length,
+        potential_points,
+        Xo,
+        Yo,
+        w,
+        l,
+        debug,
     ) -> None:
-        A, B, Ay, Bx = (Xo, Yo + l), (Xo + w, Yo), Yo + l, Xo + w
-        # EXTRA DEBBUGING
-        # if debug:
-        #     logger.debug("horizontals")
-        #     for Y_level in horizontals:
-        #         logger.debug(f"{Y_level} : {horizontals[Y_level]}")
-        #     logger.debug("verticals")
-        #     for X_level in verticals:
-        #         print(f"{X_level} : {verticals[X_level]}")
-        hors, verts, L, W = (
-            sorted(horizontals),
-            sorted(verticals),
-            container["L"],
-            container["W"],
+        A, B, Ay, Bx, L, W = (
+            (Xo, Yo + l),
+            (Xo + w, Yo),
+            Yo + l,
+            Xo + w,
+            container_length,
+            container_width,
         )
-        if debug:
-            logger.debug(f"\tverts ={verts}\n\thors ={hors}")
 
-        A_gen = 0
+        # % ---------------------------------------------------------
+        A_gen = False
         append_A__ = True
-        prohibit_A__and_E = False
+        prohibit_E_and_A_ = False
 
-        # A POINT ON BIN WALL
-        if Ay < L and Xo == 0:
-            A_gen = 1
-            if debug:
-                logger.debug(f"\tgen point A --> {A}")
+        if (Ay < L and container_coords[Ay][Xo] == 0) and (
+            (Xo == 0)
+            or (
+                # On right side of an item
+                # or top right corner of another item that gets continued
+                container_coords[Ay - 1][Xo - 1] in (2, 3)
+                and container_coords[Ay][Xo - 1] in (2, 3)
+            )
+            or (
+                # On start of another items bottom right corner
+                # another item might not be found directly below
+                container_coords[Ay - 1][Xo - 1] in (0, 3)
+                and container_coords[Ay][Xo - 1] == 3
+            )
+        ):
+            A_gen = True
             potential_points["A"].append(A)
+            if debug:
+                logger.debug(f"\tgenerating point A --> {A}")
 
-        # A POINT NOT ON BIN WALL
-        elif Ay < L:
-            segments = verticals[Xo]
-            append_A = False
-            # checking vertical lines on Xo for potential A
-            for seg in segments:
-                if seg[0][1] == Ay or Ay == seg[1][1]:
-                    # if vertical segment on Ay's X coord obstructs A
-                    # prohibit A', E
-                    prohibit_A__and_E = True
-                if seg[0][1] <= Ay and seg[1][1] > Ay:
-                    # if vertical segment on Ay's X coord passes through A
-                    # or it's start touches A
-                    append_A = True
-                    break
-            # if horizontal segment passes through A, prohibit A, A', E
-            if Ay in hors:
-                segments = horizontals[Ay]
-                for seg in segments:
-                    if seg[0][0] <= Xo and seg[1][0] > Xo:
-                        append_A = False
-                        append_A__ = False
-                        break
-            if append_A:
-                if debug:
-                    logger.debug(f"\tgen point A --> {A}")
-                potential_points["A"].append(A)
-                A_gen = True
+        if Ay >= L or container_coords[Ay][Xo] != 0:
+            append_A__ = False
 
+        elif Ay >= L or container_coords[Ay][Xo - 1] in (2, 3):
+            prohibit_E_and_A_ = True
+
+        # % ---------------------------------------------------------
         # A' or E POINT
-        verts__lt__Xo = [x for x in verts if x < Xo]
-        if not A_gen and not prohibit_A__and_E and verts__lt__Xo != []:
-            num = 0
-            stop = False
-            found = False
-            if debug:
-                logger.debug(f"\n\tSEARCHING A' POINT. Ai=({Xo},{Ay})")
-            for vert_X in verts__lt__Xo[-1::-1]:
-                increased_num = False
-                segments = verticals.get(vert_X, [])
-                segments.sort()
-                if debug:
-                    logger.debug(f"\tvert_X = {vert_X}, \n\t\tsegments = {segments}")
-                for seg in segments:
-                    seg_start_Y, seg_end_Y, seg_start_X = seg[0][1], seg[1][1], seg[0][0]
-                    # the verticals on this X have passed Ay landing point
-                    # abort searching A'
-                    if seg_start_Y > Ay:
-                        if debug:
-                            logger.debug("\t\tbreaking due to overpassed Ay")
-                        break
-                    # if segment with Y == Ay, check if it is continued
-                    # if segment is discontinued, abort searching for A'
-                    if seg_end_Y == Ay:
-                        seg_index = segments.index(seg)
-                        segs_to_search = segments[seg_index + 1 : :]
-                        dont_stop = False
-                        for sub_seg in segs_to_search:
-                            if sub_seg[0][1] == Ay:
-                                if debug:
-                                    logger.debug("\t\tfound continuous corner segments")
-                                dont_stop = True
-                                break
-                        if not dont_stop:
-                            stop = True
-                            if debug:
-                                logger.debug(
-                                    "\t\tbreaking due to non continuous obstacle"
-                                )
-                            break
-                    # intersegments number
-                    if not increased_num and (seg_end_Y > Yo and seg_end_Y < Ay):
-                        num += 1
-                        increased_num = True
-                        if debug:
-                            logger.debug(f"\t\tintersegment num = {num}")
-                    # landing segment condition for A' appendance
-                    if seg_start_Y <= Ay and seg_end_Y > Ay:
-                        appendance_point = (seg_start_X, Ay)
-                        if num <= 1 or (num <= 2 and increased_num):
-                            if debug:
-                                logger.debug(f"\t\tgen point A' --> {appendance_point}")
-                            potential_points["A_"].append(appendance_point)
-                        else:
-                            if debug:
-                                logger.debug(f"\t\tgen point E --> {appendance_point}")
-                            potential_points["E"].append(appendance_point)
-                        found = True
-                if stop or found:
+        if (
+            Ay < L
+            and Xo > 0
+            and not A_gen
+            and not prohibit_E_and_A_
+            and container_coords[Ay - 1][Xo - 1] == 0  # at least one empty coord
+            and container_coords[Ay][Xo - 1] == 0  # not blocked from upside
+        ):
+            x_point = None
+
+            for x in range(Xo - 1, -1, -1):
+                # case of container wall
+                if (
+                    container_coords[Ay][x] == 0
+                    and container_coords[Ay - 1][x] == 0
+                    and x == 0
+                ):
+                    x_point = x
+                    break
+                elif container_coords[Ay][x] == 0 and container_coords[Ay - 1][x] == 0:
+                    # empty space
+                    continue
+                elif container_coords[Ay][x] in (2, 3) and container_coords[Ay - 1][x] in (
+                    2,
+                    3,
+                ):
+                    # either continuous or connected point
+                    x_point = x + 1
+                    break
+                elif container_coords[Ay][x] in (2, 3) and container_coords[Ay - 1][x] == 0:
+                    # either continuous or connected point
+                    x_point = x + 1
                     break
 
+            if x_point is not None:
+                if (abs(Xo - x_point) / W) <= self.RATIO_FOR_POINT_A_:
+                    if debug:
+                        logger.debug(f"\tgenerating point A' --> {(x_point, Ay)}")
+                    potential_points["A_"].append((x_point, Ay))
+                else:
+                    if debug:
+                        logger.debug(f"\tgenerating point E --> {(x_point, Ay)}")
+                    potential_points["E"].append((x_point, Ay))
+
+        # % ---------------------------------------------------------
         # A'' POINT
-        if not A_gen and Ay < L and append_A__:
-            if debug:
-                logger.debug(f"\tgen point A'' --> {A}")
+        if not A_gen and append_A__:
             potential_points["A__"].append(A)
+            if debug:
+                logger.debug(f"\tgenerating point A'' --> {A}")
 
         # % ---------------------------------------------------------
         # % ---------------------------------------------------------
         B_gen = False
-        prohibit_B__and_F = False
+        prohibit_F_and_B_ = False
         append_B__ = True
 
-        # B POINT ON BIN BOTTOM
-        if Bx < W and Yo == 0:
+        if (Bx < W and container_coords[Yo][Bx] == 0) and (
+            (Yo == 0)
+            or (
+                # On top side of another item
+                container_coords[Yo - 1][Bx - 1] in (2, 3)
+                and container_coords[Yo - 1][Bx] in (2, 3)
+            )
+            or (
+                # On start of another items left corner
+                container_coords[Yo - 1][Bx - 1] in (0, 3)
+                and container_coords[Yo - 1][Bx] == 3
+            )
+        ):
             B_gen = True
-            if debug:
-                logger.debug(f"\tgen point B --> {B}")
             potential_points["B"].append(B)
-
-        # B POINT NOT ON BIN BOTTOM
-        elif Bx < W:
-            segments = horizontals[Yo]
-            append_B = False
-            for seg in segments:
-                if seg[0][0] == Bx or seg[1][0] == Bx:
-                    # if horizontal segment on Bx's level obstructs B
-                    # prohibit B', F
-                    prohibit_B__and_F = 1
-                if seg[0][0] <= Bx and seg[1][0] > Bx:
-                    # if horizontal segment on Bx's level passes through B
-                    append_B = True
-                    break
-            # check if vertical segment through B prohibits placement
-            if Bx in verts:
-                for seg in verticals[Bx]:
-                    if seg[0][1] <= Yo and seg[1][1] > Yo:
-                        append_B = False
-                        append_B__ = False
-                        break
-            if append_B:
-                B_gen = True
-                if debug:
-                    logger.debug(f"\tgen point B --> {B}")
-                potential_points["B"].append(B)
-
-        # B', F POINTS
-        hors__lt__Yo = [y for y in hors if y < Yo]
-        if not B_gen and not prohibit_B__and_F and hors__lt__Yo != []:
-            num = 0
-            stop = False
-            found = False
             if debug:
-                logger.debug(f"\n\tSEARCHING B' POINT. Bi=({Bx},{Yo})")
-            for hor_Y in hors__lt__Yo[-1::-1]:
-                increased_num = False
-                segments = horizontals.get(hor_Y, [])
-                segments.sort()
-                if debug:
-                    logger.debug(f"\thor_Y = {hor_Y}, \n\t\tsegments = {segments}")
-                for seg in segments:
-                    seg_start_X, seg_end_X, seg_start_Y = seg[0][0], seg[1][0], seg[0][1]
-                    # the horizontals on this Y have passed Bx landing point
-                    if seg_start_X > Bx:
-                        if debug:
-                            logger.debug("\t\tbreaking due to overpassed Ay")
-                        break
-                    if seg_end_X == Bx:
-                        seg_index = segments.index(seg)
-                        segs_to_serch = segments[seg_index + 1 : :]
-                        dont_stop = False
-                        for sub_seg in segs_to_serch:
-                            if sub_seg[0][0] == Bx:
-                                if debug:
-                                    logger.debug("\t\tfound continuous corner segments")
-                                dont_stop = True
-                                break
-                        if not dont_stop:
-                            stop = True
-                            if debug:
-                                logger.debug(
-                                    "\t\tbreaking due to non continuous obstacle"
-                                )
-                            break
-                    # intersegments number
-                    if not increased_num and (seg_end_X > Xo and seg_end_X < Bx):
-                        num += 1
-                        increased_num = True
-                        if debug:
-                            logger.debug(f"\t\tintersegment num = {num}")
-                    # landing segment condition
-                    if seg_start_X <= Bx and seg_end_X > Bx:
-                        appendance_point = (Bx, seg_start_Y)
-                        if num <= 1 or (num <= 2 and increased_num):
-                            if debug:
-                                logger.debug(f"\tgen point B' --> {appendance_point}")
-                            potential_points["B_"].append(appendance_point)
-                        else:
-                            if debug:
-                                logger.debug(f"\tgen point F --> {appendance_point}")
-                            potential_points["F"].append(appendance_point)
-                        found = True
-                        break
-                if stop or found:
+                logger.debug(f"\tgenerating point B --> {B}")
+
+        if Bx >= W or container_coords[Yo][Bx] != 0:
+            append_B__ = False
+
+        elif Bx >= W or container_coords[Yo - 1][Bx] in (2, 3):
+            prohibit_F_and_B_ = True
+
+        # % ---------------------------------------------------------
+        # B', F POINTS
+        if (
+            Bx < W
+            and Yo > 0
+            and not B_gen
+            and not prohibit_F_and_B_
+            and container_coords[Yo - 1][Bx - 1] == 0  # at least one empty coord
+            and container_coords[Yo - 1][Bx] == 0  # not blocked from below
+        ):
+            y_point = None
+
+            for y in range(Yo - 1, -1, -1):
+                # case of container wall
+                if (
+                    container_coords[y][Bx] == 0
+                    and container_coords[y][Bx - 1] == 0
+                    and y == 0
+                ):
+                    y_point = y
+                    break
+                elif container_coords[y][Bx] == 0 and container_coords[y][Bx - 1] == 0:
+                    # empty space
+                    continue
+                elif container_coords[y][Bx] in (2, 3) and container_coords[y][Bx - 1] in (
+                    2,
+                    3,
+                ):
+                    # either continuous or connected point
+                    y_point = y + 1
+                    break
+                elif container_coords[y][Bx] in (2, 3) and container_coords[y][Bx - 1] == 0:
+                    # either continuous or connected point
+                    y_point = y + 1
+                    break
+                elif container_coords[y][Bx - 1] in (2, 3) and container_coords[y][Bx] == 0:
+                    # item on the left will create point
                     break
 
+            if y_point is not None:
+                if (abs(Yo - y_point) / L) <= self.RATIO_FOR_POINT_B_:
+                    if debug:
+                        logger.debug(f"\tgenerating point B' --> {(Bx, y_point)}")
+                    potential_points["B_"].append((Bx, y_point))
+                else:
+                    if debug:
+                        logger.debug(f"\tgenerating point F --> {(Bx, y_point)}")
+                    potential_points["F"].append((Bx, y_point))
+
+        # % ---------------------------------------------------------
         # B'' POINT
         # it is a marginally B point
-        if not B_gen and Bx < W and append_B__:
+        if not B_gen and append_B__:
             if debug:
-                logger.debug(f"\tgen point B'' --> {B}")
+                logger.debug(f"\tgenerating point B'' --> {B}")
             potential_points["B__"].append(B)
 
         # % ---------------------------------------------------------
         # C POINT
-        if Ay in hors:
-            segments = horizontals[Ay]
-            append_C = False
-            seg_end_X_to_append = None
-            segments.sort()
-            for seg in segments:
-                seg_start_X = seg[0][0]
-                seg_end_X = seg[1][0]
-                # check if another segment follows
-                if seg_end_X_to_append and seg_start_X == seg_end_X_to_append:
-                    append_C = False
-                    break
-                if seg_end_X > Xo and seg_end_X < Bx:
-                    append_C = True
-                    seg_end_X_to_append = seg_end_X
-            if append_C:
-                if debug:
-                    logger.debug(f"\tgen point C --> {(seg_end_X_to_append, Ay)}")
-                potential_points["C"].append((seg_end_X_to_append, Ay))
-                try:
-                    potential_points["B__"].remove((seg_end_X_to_append, Ay))
-                except ValueError:
-                    pass
+        if Ay < L:
+            for x in range(Xo, Bx - 1):
+                if container_coords[Ay][x] == 3 and container_coords[Ay][x + 1] == 0:
+                    potential_points["C"].append((x + 1, Ay))
+                    if debug:
+                        logger.debug(f"\tgenerating point C --> {(x + 1, Ay)}")
 
         # % ---------------------------------------------------------
         # D POINT:
-        if Bx in verts:
-            segments = verticals[Bx]
-            append_D = False
-            end_of_seg_Y_to_append = None
-            for seg in segments:
-                seg_end_Y = seg[1][1]
-                seg_start_Y = seg[0][1]
-                if seg_end_Y > Yo and seg_end_Y < Ay:
-                    append_D = True
-                    end_of_seg_Y_to_append = seg_end_Y
-                if seg_start_Y < Ay and seg_end_Y > Ay:
-                    append_D = False
-                    break
-
-            if append_D:
-                if debug:
-                    logger.debug(f"\tgen point D --> {(Bx, end_of_seg_Y_to_append)}")
-                potential_points["D"].append((Bx, end_of_seg_Y_to_append))
-                try:
-                    potential_points["A__"].remove((Bx, end_of_seg_Y_to_append))
-                except ValueError:
-                    pass
+        if Bx < W:
+            for y in range(Yo, Ay - 1):
+                if container_coords[y][Bx] == 3 and container_coords[y + 1][Bx] == 0:
+                    potential_points["D"].append((Bx, y + 1))
+                    if debug:
+                        logger.debug(f"\tgenerating point D --> {(Bx, y + 1)}")
 
     def _get_current_point(self, potential_points) -> tuple:
         for pclass in self._potential_points_strategy:
@@ -391,32 +314,6 @@ class PointGenerationMixin:
                 return potential_points[pclass].popleft(), pclass
 
         return (None, None)
-
-    def _append_segments(self, horizontals, verticals, Xo, Yo, w, l) -> None:
-        # A, B = (Xo, Yo + l), (Xo + w, Yo)
-        Ay, Bx = Yo + l, Xo + w
-
-        # verticals -------------------------------
-        if Xo in verticals:
-            verticals[Xo].append(((Xo, Yo), (Xo, Ay)))
-        else:
-            verticals[Xo] = [((Xo, Yo), (Xo, Ay))]
-
-        if Xo + w in verticals:
-            verticals[Xo + w].append(((Bx, Yo), (Bx, Ay)))
-        else:
-            verticals[Xo + w] = [((Bx, Yo), (Bx, Ay))]
-
-        # horizontals -------------------------------
-        if Yo in horizontals:
-            horizontals[Yo].append(((Xo, Yo), (Bx, Yo)))
-        else:
-            horizontals[Yo] = [((Xo, Yo), (Bx, Yo))]
-
-        if Yo + l in horizontals:
-            horizontals[Yo + l].append(((Xo, Ay), (Bx, Ay)))
-        else:
-            horizontals[Yo + l] = [((Xo, Ay), (Bx, Ay))]
 
     def _get_initial_container_length(self, container):
         if self._strip_pack:
@@ -439,29 +336,39 @@ class PointGenerationMixin:
             "F": deque(),
         }
 
-    def _get_initial_horizontal_segments(self, container_width):
-        return {0: [((0, 0), (container_width, 0))]}
-
-    def _get_initial_vertical_segments(self, container_width, container_length):
-        return {
-            0: [((0, 0), (0, container_length))],
-            container_width: [
-                ((container_width, 0), (container_width, container_length))
-            ],
-        }
-
     def _get_initial_point(self, potential_points, **kwargs):
         return potential_points["O"], "O"
 
-    def _construct_solution(self, cont_id, container, items, debug=False) -> tuple:
+    def _construct_solution(
+        self,
+        items,
+        items_ids,
+        container_length,
+        container_width,
+        strip_pack,
+        initial_potential_points,
+        initial_point,
+        initial_point_class,
+        init_obj_value=0,
+        max_obj_value=1,
+        debug=False,
+    ) -> tuple:
         """
         Point generation construction heuristic
         for solving single container problem instance.
 
         INPUT
-            container,
             items,
-            debug (mode),
+            items_ids,
+            container_length,
+            container_width,
+            strip_pack,
+            initial_potential_points,
+            initial_point,
+            initial_point_class,
+            init_obj_value=0,
+            max_obj_value=1,
+            debug=False,
 
             implicitly by attribute, the potential points strategy
 
@@ -470,21 +377,15 @@ class PointGenerationMixin:
             B. returns (remaining non-fitted items, containers utilization) tuple.
         """
         current_solution = {}
-        strip_pack = getattr(self, "_strip_pack", False)
 
-        # 'items' are the available for placement
-        # after an item get's picked, it gets removed
-        items_ids = [_id for _id in items]
-
-        L = self._get_initial_container_length(container)
-        W = container["W"]
+        L = container_length
+        W = container_width
 
         W * L
         # obj_value is the container utilization
         # obj_value = Area(Placed Items)/Area(Container)
-        obj_value = self.init_obj_value
+        obj_value = init_obj_value
         items_area = 0
-        max_obj_value = self.max_obj_value
 
         # a list where each element
         # depicts a y coordinate
@@ -492,13 +393,8 @@ class PointGenerationMixin:
         # of every x coordinate
         container_coords = [array("I", [0] * W) for y in range(L)]
 
-        horizontals = self._get_initial_horizontal_segments(W)
-        verticals = self._get_initial_vertical_segments(W, L)
-
-        potential_points = self._get_initial_potential_points()
-
-        # O(0, 0) init point
-        current_point, point_class = self._get_initial_point(potential_points)
+        potential_points = initial_potential_points
+        current_point, point_class = initial_point, initial_point_class
 
         # START of item placement process
         while True:
@@ -506,7 +402,7 @@ class PointGenerationMixin:
                 break
 
             if debug:
-                logger.debug(f"\nCURRENT POINT: {current_point} class: {point_class}")
+                logger.debug(f"\n\nCURRENT POINT: {current_point} class: {point_class}")
 
             Xo, Yo = current_point
 
@@ -531,18 +427,65 @@ class PointGenerationMixin:
                         continue
 
                 if debug:
-                    logger.debug(f"--> {item_id}\n")
+                    logger.debug(
+                        f"--> {item_id} : "
+                        f"'w': {items[item_id]['w']} , 'l': {items[item_id]['l']}\n"
+                    )
 
+                # ------------------------------------------------
                 # add item to container
-                # actually setting as 1 all the container's
+                # actually setting all the container's
                 # coordinates that are taken by the item
-                for y in range(Yo, Yo + l):
-                    container_coords[y][Xo : Xo + w] = array("I", [1] * w)
+
+                # PREVIOUS COORDINATION
+                # for y in range(Yo, Yo + l):
+                #     container_coords[y][Xo : Xo + w] = array("I", [1] * w)
+
+                # set inside the item's coords as 1 (only if width > 2)
+                x_start = Xo
+                x_end = Xo + w - 1
+                y_start = Yo
+                y_end = Yo + l - 1
+
+                if w > 2 and l > 2:
+                    for y in range(y_start + 1, y_end):
+                        container_coords[y][x_start + 1 : x_end] = array("I", [1] * (w - 2))
+
+                # set item's horizontal sides as 2
+                if w > 2:
+                    container_coords[y_start][x_start + 1 : x_end] = array(
+                        "I", [2] * (w - 2)
+                    )
+                    if l > 1:
+                        container_coords[y_end][x_start + 1 : x_end] = array(
+                            "I", [2] * (w - 2)
+                        )
+
+                # set item's vertical sides as 2
+                if l > 2:
+                    for y in range(y_start + 1, y_end):
+                        container_coords[y][x_start] = 2
+                        if w > 1:
+                            container_coords[y][x_end] = 2
+
+                # set corners as number 3
+                (
+                    container_coords[y_start][x_start],
+                    container_coords[y_start][x_end],
+                    container_coords[y_end][x_start],
+                    container_coords[y_end][x_end],
+                ) = (
+                    3,
+                    3,
+                    3,
+                    3,
+                )
 
                 # removing item wont affect execution. 'for' breaks below
                 items_ids.remove(item_id)
                 del items[item_id]
 
+                # ------------------------------------------------
                 if not strip_pack:
                     obj_value = obj_value + self.calculate_objective_value(
                         w,
@@ -551,21 +494,20 @@ class PointGenerationMixin:
                         L,
                         Xo,
                         Yo,
-                        horizontals,
-                        verticals,
                         container_coords,
                     )
 
                 item.update({"Xo": Xo, "Yo": Yo, "rotated": rotated})
                 current_solution[item_id] = item
 
+                # ------------------------------------------------
                 # for the new inserted item
                 # generate all new potential points
                 # and add all new linear segments of the item
                 self._generate_points(
-                    container,
-                    horizontals,
-                    verticals,
+                    container_coords,
+                    container_width,
+                    container_length,
                     potential_points,
                     Xo,
                     Yo,
@@ -573,7 +515,6 @@ class PointGenerationMixin:
                     l,
                     debug,
                 )
-                self._append_segments(horizontals, verticals, Xo, Yo, w, l)
 
                 break
 
@@ -582,23 +523,24 @@ class PointGenerationMixin:
 
             current_point, point_class = self._get_current_point(potential_points)
 
+        # ------------------------------------------------
         # END of item placement process
 
         if strip_pack:
-            height_of_solution = max(set(horizontals)) or 1
+            height_of_solution = 1
+
+            for y in range(L - 1, 0, -1):
+                if any(container_coords[y]):
+                    height_of_solution = y
+                    break
+
             items_area = sum(
                 [item["w"] * item["l"] for _, item in current_solution.items()]
             )
             obj_value = items_area / (W * height_of_solution)
 
-        return items, obj_value, current_solution
-
-    def _get_container_solution(self, current_solution):
-        """
-        Returns the solution object of the _construct method
-        for the current solving container.
-        """
         solution = {}
+
         for _id in current_solution:
             item = current_solution[_id]
             solution[_id] = [
@@ -607,7 +549,8 @@ class PointGenerationMixin:
                 item["w"] if not item["rotated"] else item["l"],
                 item["l"] if not item["rotated"] else item["w"],
             ]
-        return solution
+
+        return items, obj_value, solution
 
     def _solve(self, sequence=None, debug=False) -> None:
         """
@@ -653,13 +596,31 @@ class PointGenerationMixin:
         for cont_id in self._containers:
             solution[cont_id] = {}
             obj_val_per_container[cont_id] = 0
-            if items == {}:
+            container = self._containers[cont_id]
+
+            if not items:
                 continue
-            items, util, current_solution = self._construct_solution(
-                cont_id, container=self._containers[cont_id], items=items, debug=debug
+
+            initial_potential_points = self._get_initial_potential_points()
+            # (0, 0) , "O"
+            initial_point, initial_point_class = self._get_initial_point(
+                initial_potential_points
             )
+
+            items, util, container_solution = self._construct_solution(
+                items=items,
+                items_ids=[_id for _id in items],
+                container_length=self._get_initial_container_length(container),
+                container_width=container["W"],
+                strip_pack=getattr(self, "_strip_pack", False),
+                initial_potential_points=initial_potential_points,
+                initial_point=initial_point,
+                initial_point_class=initial_point_class,
+                debug=debug,
+            )
+
             obj_val_per_container[cont_id] = util
-            solution[cont_id] = self._get_container_solution(current_solution)
+            solution[cont_id] = container_solution
 
         return solution, obj_val_per_container
 
@@ -680,9 +641,9 @@ class SolutionLoggingMixin:
             return
 
         log = ["\nSolution Log:"]
-        percent_items_stored = sum(
-            [len(i) for cont_id, i in self.solution.items()]
-        ) / len(self._items)
+        percent_items_stored = sum([len(i) for cont_id, i in self.solution.items()]) / len(
+            self._items
+        )
         log.append(f"Percent total items stored : {percent_items_stored*100:.4f}%")
 
         for cont_id in self._containers:
@@ -1093,8 +1054,7 @@ class ItemsManipulationMixin:
             sorted_items.sort(reverse=reverse)
         elif by == "longest_side_ratio":
             sorted_items = [
-                [max(i["w"], i["l"]) / min(i["w"], i["l"]), _id]
-                for _id, i in items.items()
+                [max(i["w"], i["l"]) / min(i["w"], i["l"]), _id] for _id, i in items.items()
             ]
             sorted_items.sort(reverse=reverse)
         else:

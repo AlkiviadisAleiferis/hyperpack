@@ -209,6 +209,8 @@ class PointGenerationSolver(
         self._containers_num = len(self._containers)
         self.solution = {}
 
+    # % -----------------------------
+
     def _validate_settings(self) -> None:
         """
         Method for validating and applying the settings either
@@ -256,6 +258,8 @@ class PointGenerationSolver(
     def validate_settings(self) -> None:
         self._validate_settings()
 
+    # % -----------------------------
+
     def solve(self, sequence=None, debug=False) -> None:
         """
         Solves the problem and updates the corresponding
@@ -264,6 +268,8 @@ class PointGenerationSolver(
         self.solution, self.obj_val_per_container = self._solve(
             sequence=sequence, debug=debug
         )
+
+    # % -----------------------------
 
     @property
     def settings(self):

@@ -27,31 +27,17 @@ def test_two_bins_AND_logging(caplog):
     containers = {"c_a": {"W": 25, "L": 25}, "c_b": {"W": 25, "L": 20}}
     prob = HyperPack(containers=containers, items=items_a, settings=settings)
     prob.hypersearch(_exhaustive=False)
-    solution_log = SOLUTION_LOG_ITEMS_STRATEGY.format(53.5714)
-    solution_log += SOLUTION_STRING_CONTAINER.format("c_a", 25, 25, 100)
+    solution_log = SOLUTION_LOG_ITEMS_STRATEGY.format(60.7143)
+    solution_log += SOLUTION_STRING_CONTAINER.format("c_a", 25, 25, 99.36)
     solution_log += SOLUTION_STRING_CONTAINER.format("c_b", 25, 20, 99.2)
     solution_log += SOLUTION_STRING_REMAINING_ITEMS.format(
-        [
-            "i_6",
-            "i_25",
-            "i_24",
-            "i_7",
-            "i_1",
-            "i_12",
-            "i_15",
-            "i_13",
-            "i_8",
-            "i_14",
-            "i_27",
-            "i_23",
-            "i_21",
-        ]
+        ['i_4', 'i_6', 'i_9', 'i_26', 'i_12', 'i_13', 'i_8', 'i_14', 'i_17', 'i_27', 'i_21']
     )
     solution_log = solution_log.replace("\n", "").replace("\t", "")
     print(solution_log)
     print(prob.log_solution().replace("\n", "").replace("\t", ""))
     r = re.compile(r"Winning Process hypersearch_[\d] found max")
-    assert prob.calculate_obj_value() == 1.6944000000000004
+    assert prob.calculate_obj_value() == 1.688
     assert prob.log_solution().replace("\n", "").replace("\t", "") == solution_log
     assert r.search(caplog.text)
 
@@ -75,20 +61,22 @@ def test_non_exhaustive_max_obj_value_AND_logging(caplog):
     prob = HyperPack(containers=C3_containers, items=items_a, settings=settings)
     prob.sort_items(sorting_by=("area", True))
     prob.orient_items(orientation="wide")
+
     prob.hypersearch(_exhaustive=False)
     solution_log = SOLUTION_LOG_ITEMS_STRATEGY.format(
         100,
-        ["B_", "C", "A", "A_", "B", "D", "A__", "B__", "F", "E"],
+        ["C", "D", "A", "B_", "B", "A_", "A__", "B__", "F", "E"],
     )
     solution_log += SOLUTION_STRING_CONTAINER.format("container_0", 60, 30, 100)
     solution_log += SOLUTION_STRING_REMAINING_ITEMS.format([])
     solution_log = solution_log.replace("\n", "").replace("\t", "")
+    solution_log_output = prob.log_solution().replace("\n", "").replace("\t", "")
     r = re.compile(r"Winning Process hypersearch_[\d] found max")
     print(solution_log)
-    print(prob.log_solution().replace("\n", "").replace("\t", ""))
-    assert prob.calculate_obj_value() == 1.0000000000000002
+    print(solution_log_output)
+    assert prob.calculate_obj_value() == 1
     assert len(prob.solution["container_0"]) == len(items_a)
-    assert prob.log_solution().replace("\n", "").replace("\t", "") == solution_log
+    assert solution_log_output == solution_log
     assert r.search(caplog.text)
 
 

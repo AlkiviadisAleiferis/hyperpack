@@ -16,18 +16,7 @@ DEFAULT_POTENTIAL_POINTS_STRATEGY = HyperPack.DEFAULT_POTENTIAL_POINTS_STRATEGY
 def test_max_value_AND_logging(caplog):
     settings = {"workers_num": 1}
     prob = HyperPack(containers=containers, items=items_a, settings=settings)
-    prob._potential_points_strategy = [
-        "B_",
-        "C",
-        "A",
-        "A_",
-        "B",
-        "D",
-        "A__",
-        "B__",
-        "F",
-        "E",
-    ]
+    prob._potential_points_strategy = ("A", "A_", "B_", "C", "B", "D", "A__", "B__", "F", "E")
     prob.sort_items(sorting_by=("area", True))
     prob.orient_items(orientation="wide")
     prob.local_search()
@@ -35,7 +24,13 @@ def test_max_value_AND_logging(caplog):
     solution_log += SOLUTION_STRING_CONTAINER.format("container_0", 60, 30, 100)
     solution_log += SOLUTION_STRING_REMAINING_ITEMS.format([])
     solution_log = solution_log.replace("\n", "").replace("\t", "")
-    assert prob.calculate_obj_value() == 1.0000000000000002
+    
+    solution_log_output = prob.log_solution().replace("\n", "").replace("\t", "")
+    
+    print(solution_log)
+    print(solution_log_output)
+    
+    assert prob.calculate_obj_value() == 1
     assert len(prob.solution["container_0"]) == len(items_a)
     assert prob.log_solution().replace("\n", "").replace("\t", "") == solution_log
 

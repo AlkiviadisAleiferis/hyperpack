@@ -13,9 +13,9 @@ from hyperpack import (
     "containers,error_msg,error",
     [
         # missing
-        (None, ContainersError.MISSING, ContainersError),
         ({}, ContainersError.MISSING, ContainersError),
         # type
+        (None, ContainersError.TYPE, ContainersError),
         ([], ContainersError.TYPE, ContainersError),
         ("[]", ContainersError.TYPE, ContainersError),
         (1, ContainersError.TYPE, ContainersError),

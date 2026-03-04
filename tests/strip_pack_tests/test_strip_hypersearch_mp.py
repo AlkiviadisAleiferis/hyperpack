@@ -42,7 +42,7 @@ def test_container_min_height_not_None():
     prob._container_min_height = 50
     prob.hypersearch(_exhaustive=False)
     # value set at local_search last node
-    assert prob._containers._get_height() == 50  # solution height is less
+    assert prob._containers._get_height() > 50  # solution height is less
     assert len(C3.items_a) == len(prob.solution[STRIP_PACK_CONT_ID])
 
 

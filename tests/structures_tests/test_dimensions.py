@@ -10,36 +10,36 @@ from hyperpack import (
 )
 
 
-def test_Dimensions_reference_structure_ok(test_data):
+def test_Dimensions_structure_type_ok(test_data):
     items = Items(test_data["items"])
-    d = Dimensions({"w": 1, "l": 1}, reference_structure=items)
+    d = Dimensions({"w": 1, "l": 1}, structure_type=items)
     assert d.proper_keys == {"w", "l"}
 
     containers = Containers(test_data["containers"])
-    d = Dimensions({"W": 1, "L": 1}, reference_structure=containers)
+    d = Dimensions({"W": 1, "L": 1}, structure_type=containers)
     assert d.proper_keys == {"W", "L"}
 
 
-def test_Dimensions_wrong_reference_structure_error(caplog):
+def test_Dimensions_wrong_structure_type_error(caplog):
     error_msg = DimensionsError.DIMENSIONS_REFERENCE_OBJECT
     with pytest.raises(DimensionsError) as exc_info:
-        d = Dimensions({"w": 1, "l": 1}, reference_structure="wrong")
+        d = Dimensions({"w": 1, "l": 1}, structure_type="wrong")
     assert str(exc_info.value) == error_msg
     assert error_msg in caplog.text
 
 
-def test_Dimensions_reference_structure_container_error(test_data, caplog):
+def test_Dimensions_structure_type_container_error(test_data, caplog):
     with pytest.raises(DimensionsError) as exc_info:
         containers = Containers(test_data["containers"])
-        d = Dimensions({"w": 1, "l": 1}, reference_structure=containers)
+        d = Dimensions({"w": 1, "l": 1}, structure_type=containers)
     assert str(exc_info.value) == DimensionsError.DIMENSIONS_KEYS
     assert DimensionsError.DIMENSIONS_KEYS in caplog.text
 
 
-def test_Dimensions_reference_structure_item_error(test_data, caplog):
+def test_Dimensions_structure_type_item_error(test_data, caplog):
     with pytest.raises(DimensionsError) as exc_info:
         items = Items(test_data["items"])
-        d = Dimensions({"W": 1, "L": 1}, reference_structure=items)
+        d = Dimensions({"W": 1, "L": 1}, structure_type=items)
     assert str(exc_info.value) == DimensionsError.DIMENSIONS_KEYS
     assert DimensionsError.DIMENSIONS_KEYS in caplog.text
 

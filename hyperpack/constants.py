@@ -1,3 +1,12 @@
+# When hypersearch runs with `_exhaustive=False`
+# the strategy pool used is only this:
+DEFAULT_POTENTIAL_POINTS_STRATEGY_POOL = (
+    # C3, items_a best strategy
+    ("A", "A_", "B_", "C", "B", "D", "A__", "B__", "F", "E"),
+    ("A", "A_", "B_", "C", "B", "D", "A__", "B__", "F", "E"),
+)
+
+
 ITEMS_COLORS = (
     "#6c5ebd",
     "#cd5836",
@@ -999,10 +1008,4 @@ ITEMS_COLORS = (
     "#2ab9b6",
     "#b37eb1",
     "#135519",
-)
-
-DEFAULT_POTENTIAL_POINTS_STRATEGY_POOL = (
-    ("A", "D", "B_", "C", "B", "A_", "A__", "B__", "F", "E"),
-    # C3, items_a best strategy
-    ("B_", "C", "A", "A_", "B", "D", "A__", "B__", "F", "E"),
 )

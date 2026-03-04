@@ -8,8 +8,8 @@ from hyperpack import Dimensions, DimensionsError, HyperPack, Items, ItemsError
     [
         # missing
         ({}, ItemsError.MISSING, ItemsError),
-        (None, ItemsError.MISSING, ItemsError),
         # type
+        (None, ItemsError.TYPE, ItemsError),
         ("f", ItemsError.TYPE, ItemsError),
         ([], ItemsError.TYPE, ItemsError),
         (1, ItemsError.TYPE, ItemsError),
@@ -18,8 +18,8 @@ from hyperpack import Dimensions, DimensionsError, HyperPack, Items, ItemsError
         ({0: {"w": 10, "l": 10}}, ItemsError.ID_TYPE, ItemsError),
         # items missing
         ({"item_id": {}}, DimensionsError.DIMENSIONS_MISSING, DimensionsError),
-        ({"item_id": None}, DimensionsError.DIMENSIONS_MISSING, DimensionsError),
         # type of every item
+        ({"item_id": None}, DimensionsError.DIMENSIONS_TYPE, DimensionsError),
         ({"item_id": 0}, DimensionsError.DIMENSIONS_TYPE, DimensionsError),
         ({"item_id": "0"}, DimensionsError.DIMENSIONS_TYPE, DimensionsError),
         ({"item_id": 0.0}, DimensionsError.DIMENSIONS_TYPE, DimensionsError),
@@ -62,7 +62,6 @@ from hyperpack import Dimensions, DimensionsError, HyperPack, Items, ItemsError
 def test_items_validation_assignment(items, error_msg, error, request):
     caplog = request.getfixturevalue("caplog")
     test_data = request.getfixturevalue("test_data")
-    containers = {"cont_id": {"W": 100, "L": 100}}
     with pytest.raises(error) as exc_info:
         prob = HyperPack(containers=test_data["containers"], items=items)
     assert str(exc_info.value) == error_msg

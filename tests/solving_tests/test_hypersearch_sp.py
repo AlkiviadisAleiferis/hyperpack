@@ -22,7 +22,7 @@ def test_non_exhaustive_max_obj_value(caplog):
     solution_log += SOLUTION_STRING_CONTAINER.format("container_0", 60, 30, 100)
     solution_log += SOLUTION_STRING_REMAINING_ITEMS.format([])
     solution_log = solution_log.replace("\n", "").replace("\t", "")
-    assert prob.calculate_obj_value() == 1.0000000000000002
+    assert prob.calculate_obj_value() == 1
     assert len(prob.solution["container_0"]) == len(items_a)
     assert prob.log_solution().replace("\n", "").replace("\t", "") == solution_log
     assert "Solving with single core" in caplog.text
@@ -60,31 +60,21 @@ def test_two_bins_solution(caplog):
     prob = HyperPack(containers=containers, items=items_a)
     prob.hypersearch(_exhaustive=False)
     solution_log = SOLUTION_LOG_ITEMS_STRATEGY.format(
-        53.5714,
+        60.7143,
         ["B_", "C", "A", "A_", "B", "D", "A__", "B__", "F", "E"],
     )
-    solution_log += SOLUTION_STRING_CONTAINER.format("c_a", 25, 25, 100)
+    solution_log += SOLUTION_STRING_CONTAINER.format("c_a", 25, 25, 99.36)
     solution_log += SOLUTION_STRING_CONTAINER.format("c_b", 25, 20, 99.2)
     solution_log += SOLUTION_STRING_REMAINING_ITEMS.format(
-        [
-            "i_6",
-            "i_25",
-            "i_24",
-            "i_7",
-            "i_1",
-            "i_12",
-            "i_15",
-            "i_13",
-            "i_8",
-            "i_14",
-            "i_27",
-            "i_23",
-            "i_21",
-        ]
+        ['i_4', 'i_6', 'i_9', 'i_26', 'i_12', 'i_13', 'i_8', 'i_14', 'i_17', 'i_27', 'i_21']
     )
     solution_log = solution_log.replace("\n", "").replace("\t", "")
     solution_log_output = prob.log_solution().replace("\n", "").replace("\t", "")
-    assert prob.calculate_obj_value() == 1.6944000000000004
+    
+    print(solution_log)
+    print(solution_log_output)
+    
+    assert prob.calculate_obj_value() == 1.688
     assert solution_log_output == solution_log
     assert "Solving with single core" in caplog.text
 

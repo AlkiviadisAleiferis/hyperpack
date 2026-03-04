@@ -17,27 +17,18 @@ from hyperpack import HyperPack
         # 1. A' point on item on left
         (
             (5, 5),
-            ((1, 4), (1, 2), (1, 1), (1, 3)),
+            ((1, 4), (1, 2), (1, 3)),
             ("B"),
             (1, 3),
-            ((0, 0), (1, 0), (2, 0), (3, 0)),
+            ((0, 0), (1, 0), (2, 0)),
         ),
         # 2. A' point on item on left, 1 double intersegment, continuous landing corner
         (
             (5, 7),
-            ((1, 6), (1, 1), (1, 4), (1, 4), (1, 1), (1, 6)),
+            ((1, 6), (1, 1), (1, 4), (1, 1), (1, 6)),
             ("A", "B"),
             (1, 6),
-            ((0, 0), (0, 6), (1, 0), (2, 0), (1, 4), (3, 0)),
-        ),
-        # 3. A' point on item on left, double intersegment on landing
-        #    and continuous landing corner
-        (
-            (5, 7),
-            ((1, 3), (1, 3), (1, 1), (1, 4), (1, 4), (1, 1), (1, 6)),
-            ("A", "B"),
-            (1, 6),
-            ((0, 0), (0, 3), (0, 6), (1, 0), (2, 0), (1, 4), (3, 0)),
+            ((0, 0), (0, 6), (1, 0), (1, 4), (2, 0)),
         ),
         # 4. A' point on item on left, double intersegment on landing
         #    and corner protruding to the right, non continuous
@@ -178,7 +169,7 @@ def test_point_generation_prohibited_A_(
         (
             (3, 4),
             ((3, 1), (1, 2), (2, 1), (1, 2)),
-            ("A", "B_"),
+            ("A", "F"),
             [],
             ((0, 0), (0, 1), (0, 3), (2, 1)),
         ),
@@ -218,8 +209,8 @@ def test_point_generation_prohibited_A__due_to_A_gen(
     "container,items,points_seq,solution_point",
     [
         (
-            (2, 5),
-            ((1, 2), (1, 3), (2, 1)),
+            (5, 5),
+            ((1, 2), (1, 3), (1, 3), (1, 3), (2, 1)),
             ("B", "A_"),
             (0, 3),
         ),

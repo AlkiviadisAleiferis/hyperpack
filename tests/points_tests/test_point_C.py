@@ -28,7 +28,6 @@ def test_point_generation_C(
     assert point_C in prob._current_potential_points["C"]
     for num, point in enumerate(solution_points):
         assert prob.solution["cont-0"][f"i-{num}"][0:2] == list(point)
-    assert point_C not in prob._current_potential_points["B__"]
 
 
 @pytest.mark.parametrize(

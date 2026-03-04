@@ -25,10 +25,10 @@ from hyperpack import HyperPack
         # 2. projection on item below, double intersegment on landing segment
         (
             (8, 5),
-            ((5, 1), (2, 1), (2, 1), (2, 1), (5, 1), (6, 1)),
+            ((5, 1), (2, 1), (2, 1), (2, 1), (6, 1)),
             ("B", "A"),
             (6, 1),
-            ((0, 0), (5, 0), (0, 1), (2, 1), (0, 2), (0, 3)),
+            ((0, 0), (5, 0), (0, 1), (2, 1), (0, 2)),
         ),
         # 3. projection on item below, double intersegment on landing segment, continuous corner
         (
@@ -192,7 +192,7 @@ def test_generation_prohibited_point_B__due_to_B_gen(
         (
             (3, 2),
             ((1, 1), (2, 1), (1, 2)),
-            ("A", "B_"),
+            ("A", "F"),
             (2, 0),
         ),
     ],
