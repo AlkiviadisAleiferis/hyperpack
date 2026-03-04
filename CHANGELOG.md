@@ -7,6 +7,20 @@ with advance notice in the Deprecations section of releases.
 
 ---------------------------
 
+# [1.3.0] - 2026-03-04
+
+### Changes
+
+- About 70% FASTER
+- Refactored code base
+- Removed the segments system. Point generation relies only on container coordinates.
+
+### Changes (dev)
+
+Updated the poetry.lock file with newer versions
+
+---------------------------
+
 # [1.2.0] - 2023-12-26
 
 ### Changes
