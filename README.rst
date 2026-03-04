@@ -7,7 +7,7 @@
 
 .. image:: https://img.shields.io/badge/License-Apache_2.0-blue.svg
 
-.. image:: https://img.shields.io/badge/python-3.7|3.8|3.9|3.10|3.11-blue.svg
+.. image:: https://img.shields.io/badge/python-3.7|3.8|3.9|3.10|3.11|3.12|3.13-blue.svg
 
 .. image:: https://img.shields.io/badge/maintainer-alkiviadis.aliferis@gmail.com-blue.svg
 
